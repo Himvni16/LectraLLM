@@ -1,17 +1,17 @@
 # LectraLLM
 
-LectraLLM is an AI-powered lecture content validation and analysis platform. Professors will eventually be able to compare lecture content with supporting PDFs and optional syllabi.
+LectraLLM is an AI-powered lecture content comparison tool that analyzes a lecture video and its corresponding PDF, compares topic coverage, and produces percentage-based and graphical analysis.
 
 ## Current phase
 
-This repository contains **Phase 0 — Project Foundation only**. It includes the application shell, service boundaries, configuration, database client setup, health integration, tests, and developer documentation.
+**Phase 1 — Minimal Data Structure is complete.** The repository includes the Phase 0 application foundation and the minimal relational schema for one lecture-video and PDF comparison.
 
-Authentication, file uploads, transcription, LLM calls, embeddings, topic analysis, coverage reports, and dashboards are **not implemented**.
+File uploads, transcription, PDF extraction, topic extraction, semantic comparison, percentages, graphs, and analysis UI are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
 
 ## Architecture overview
 
 - **Next.js + React + TypeScript + Tailwind CSS:** primary web application at the repository root.
-- **PostgreSQL + Prisma:** planned relational persistence; Phase 0 has no application models or migrations.
+- **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, and future topic-match results.
 - **FastAPI + Python:** isolated service under `ai-service/` for future media, document, and AI processing.
 
 See [docs/architecture.md](docs/architecture.md) for responsibilities and the planned future data flow.
@@ -55,9 +55,10 @@ The AI service optionally reads `ai-service/.env`. Its `AI_CORS_ORIGINS` value i
 1. Start PostgreSQL locally.
 2. Create an empty database named `lectrallm`.
 3. Set `DATABASE_URL` in `.env.local` to your real local connection string.
-4. Run `npm run prisma:generate`.
+4. Apply the Phase 1 migration with `npx prisma migrate dev`.
+5. Run `npm run prisma:generate`.
 
-Phase 0 does not include models or migrations. Do not run `prisma migrate` yet; there is no application schema to apply.
+The migration creates only `Analysis`, `Topic`, and `TopicMatch`, plus their supporting enums and indexes. For optional development sample data, run `npm run prisma:seed` after applying the migration.
 
 ## AI service setup
 
@@ -121,7 +122,8 @@ python -c "from app.main import app; print(app.title)"
 | `npm test` | Run Vitest once |
 | `npm run test:watch` | Run Vitest in watch mode |
 | `npm run prisma:generate` | Generate Prisma Client |
+| `npm run prisma:seed` | Seed one repeatable development analysis |
 
 ## Planned future phases
 
-Future work may introduce authentication, lecture/PDF/syllabus ingestion, background processing, transcription, document parsing, topic extraction, semantic comparison, coverage scoring, and reporting dashboards. These capabilities will be designed and implemented in later phases; none are included in Phase 0.
+Future phases are limited to the lecture-video and corresponding-PDF workflow: file ingestion, transcription, PDF text extraction, topic extraction, semantic comparison, topic-wise coverage percentages, graphs, and the analysis interface. None of that processing or UI is implemented in Phase 1.

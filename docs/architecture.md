@@ -1,10 +1,10 @@
 # LectraLLM architecture
 
-> Phase 0 status: foundation only. Every processing and analysis stage described as future work below is **NOT IMPLEMENTED**.
+> Phase 1 status: the minimal relational data structure is implemented. Every processing and analysis stage described as future work below is **NOT IMPLEMENTED**.
 
 ## High-level architecture
 
-LectraLLM is split into two application services backed by PostgreSQL:
+LectraLLM is an AI-powered lecture content comparison tool that analyzes a lecture video and its corresponding PDF, compares topic coverage, and produces percentage-based and graphical analysis. It is split into two application services backed by PostgreSQL:
 
 - **Next.js web application:** the user-facing application and future product API. It owns relational data access through Prisma.
 - **FastAPI AI service:** a separate internal service reserved for future compute-heavy document, media, embedding, and LLM workflows.
@@ -14,14 +14,14 @@ Keeping the future AI pipeline outside the web process allows its Python depende
 
 ## Next.js responsibilities
 
-Implemented in Phase 0:
+Implemented through Phase 1:
 
 - Render the minimal LectraLLM application shell.
 - Validate required server-side environment configuration.
 - Provide a safe proxy health endpoint for the FastAPI service.
 - Provide the Prisma client boundary for future data access.
 
-Authentication, uploads, dashboard features, business workflows, and application database models are **NOT IMPLEMENTED**.
+Uploads, analysis workflows, and graphical results are **NOT IMPLEMENTED**. LectraLLM has no LMS, authentication, user, course, role, or syllabus-management scope.
 
 ## FastAPI responsibilities
 
@@ -31,13 +31,13 @@ Implemented in Phase 0:
 - Centralize service configuration.
 - Allow local requests from the Next.js development origins through CORS.
 
-Transcription, audio extraction, PDF parsing, syllabus parsing, embeddings, model calls, topic analysis, and background jobs are **NOT IMPLEMENTED**.
+Transcription, audio extraction, PDF parsing, embeddings, model calls, topic analysis, and semantic comparison are **NOT IMPLEMENTED**.
 
 ## Database role
 
-PostgreSQL is planned as the relational system of record for users, lectures, source-document metadata, processing state, and analysis results. Prisma will be the web application's database client and migration tool.
+PostgreSQL is the relational system of record for each video-and-PDF analysis, its future extracted topics, and future topic-match results. Prisma is the web application's database client and migration tool.
 
-Phase 0 only configures the PostgreSQL datasource and Prisma Client generator. There are no application models or migrations yet, and no database operations are run.
+Phase 1 defines exactly three application models: `Analysis`, `Topic`, and `TopicMatch`. The schema stores file metadata and paths, processing status, nullable future-extraction results, topic sources, and future semantic matches. It does not perform any processing.
 
 ## Planned future data flow
 
@@ -54,7 +54,7 @@ Topic Analysis
      ↘
       Semantic Comparison → Coverage Engine → Report
      ↗
-PDF/Syllabus Processing
+PDF Processing
 ```
 
-The web application will eventually coordinate input and present results. The AI service will execute media and semantic processing. PostgreSQL will store durable metadata, workflow state, and report data. Exact contracts and schemas are deferred until later phases.
+The web application will eventually coordinate the video/PDF input and present percentage-based and graphical results. The AI service will execute media, document, and semantic processing. PostgreSQL will store durable comparison metadata and results. Those workflows are deferred to later phases.
