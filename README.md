@@ -4,9 +4,9 @@ LectraLLM is an AI-powered lecture content comparison tool that analyzes a lectu
 
 ## Current phase
 
-**Phase 1 — Minimal Data Structure is complete.** The repository includes the Phase 0 application foundation and the minimal relational schema for one lecture-video and PDF comparison.
+**Phase 2 — Video + PDF Upload is complete.** The repository includes the Phase 0 foundation, the Phase 1 minimal relational schema, and a local-development workflow for submitting one lecture video with its corresponding PDF.
 
-File uploads, transcription, PDF extraction, topic extraction, semantic comparison, percentages, graphs, and analysis UI are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
+Transcription, PDF extraction, topic extraction, semantic comparison, percentages, graphs, and analysis results are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
 
 ## Architecture overview
 
@@ -45,6 +45,8 @@ The web app reads `.env.local`, which is intentionally ignored by Git.
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | PostgreSQL connection URL used by Prisma |
 | `AI_SERVICE_URL` | Yes | Base URL for the FastAPI service, normally `http://127.0.0.1:8000` |
+| `VIDEO_MAX_SIZE_MB` | No | Lecture video limit in MiB; defaults to `250` |
+| `PDF_MAX_SIZE_MB` | No | Lecture PDF limit in MiB; defaults to `25` |
 
 Copy `.env.example` and adjust credentials. Required server values are validated when the Next.js server starts and produce an actionable error when absent.
 
@@ -59,6 +61,28 @@ The AI service optionally reads `ai-service/.env`. Its `AI_CORS_ORIGINS` value i
 5. Run `npm run prisma:generate`.
 
 The migration creates only `Analysis`, `Topic`, and `TopicMatch`, plus their supporting enums and indexes. For optional development sample data, run `npm run prisma:seed` after applying the migration.
+
+## Upload workflow
+
+Open `http://localhost:3000/upload`, select one lecture video and one corresponding PDF, and submit them together. The server validates both files, stores them under the local `storage/` directory, and creates one `Analysis` record with status `UPLOADED`.
+
+Supported video formats:
+
+- MP4 (`.mp4`, `video/mp4`)
+- QuickTime MOV (`.mov`, common QuickTime MIME types)
+- WebM (`.webm`, `video/webm`)
+
+The document must be a `.pdf` with the `application/pdf` MIME type when the browser supplies one. Empty, missing, duplicate, invalid, or oversized files are rejected server-side with readable errors.
+
+Local development storage is organized as follows:
+
+```text
+storage/
+├── videos/
+└── pdfs/
+```
+
+Physical filenames are collision-safe generated UUIDs; original sanitized filenames are retained in the database. The runtime directory is ignored by Git. Local filesystem storage is development-only and is not intended for distributed or production deployment.
 
 ## AI service setup
 
@@ -126,4 +150,8 @@ python -c "from app.main import app; print(app.title)"
 
 ## Planned future phases
 
-Future phases are limited to the lecture-video and corresponding-PDF workflow: file ingestion, transcription, PDF text extraction, topic extraction, semantic comparison, topic-wise coverage percentages, graphs, and the analysis interface. None of that processing or UI is implemented in Phase 1.
+- **Phase 3:** extract audio and transcribe the uploaded lecture video.
+- **Phase 4:** extract text from the corresponding PDF.
+- Later phases: topic extraction, semantic comparison, topic-wise coverage percentages, graphs, and the final analysis interface.
+
+None of those processing or analysis capabilities is implemented in Phase 2.

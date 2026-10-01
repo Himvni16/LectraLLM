@@ -2,6 +2,17 @@ import "server-only";
 
 type ServerEnvName = "DATABASE_URL" | "AI_SERVICE_URL";
 
+const MEBIBYTE = 1024 * 1024;
+const DEFAULT_VIDEO_MAX_SIZE_MB = 250;
+const DEFAULT_PDF_MAX_SIZE_MB = 25;
+
+export interface UploadLimits {
+  videoMaxSizeMb: number;
+  pdfMaxSizeMb: number;
+  videoMaxSizeBytes: number;
+  pdfMaxSizeBytes: number;
+}
+
 export function requireServerEnv(name: ServerEnvName): string {
   const value = process.env[name]?.trim();
 
@@ -26,7 +37,42 @@ export function getAiServiceUrl(): string {
   }
 }
 
+function readPositiveNumber(name: string, fallback: number): number {
+  const rawValue = process.env[name]?.trim();
+
+  if (!rawValue) {
+    return fallback;
+  }
+
+  const value = Number(rawValue);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive number of megabytes.`);
+  }
+
+  return value;
+}
+
+export function getUploadLimits(): UploadLimits {
+  const videoMaxSizeMb = readPositiveNumber(
+    "VIDEO_MAX_SIZE_MB",
+    DEFAULT_VIDEO_MAX_SIZE_MB,
+  );
+  const pdfMaxSizeMb = readPositiveNumber(
+    "PDF_MAX_SIZE_MB",
+    DEFAULT_PDF_MAX_SIZE_MB,
+  );
+
+  return {
+    videoMaxSizeMb,
+    pdfMaxSizeMb,
+    videoMaxSizeBytes: videoMaxSizeMb * MEBIBYTE,
+    pdfMaxSizeBytes: pdfMaxSizeMb * MEBIBYTE,
+  };
+}
+
 export function validateServerEnv(): void {
   requireServerEnv("DATABASE_URL");
   getAiServiceUrl();
+  getUploadLimits();
 }
