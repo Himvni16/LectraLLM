@@ -1,28 +1,38 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import get_settings
+from app.config import Settings, get_settings
+from app.transcription import Transcriber
+from app.transcription_api import create_transcription_router
 
 
-def create_app() -> FastAPI:
-    settings = get_settings()
+def create_app(
+    *,
+    settings: Settings | None = None,
+    transcriber: Transcriber | None = None,
+) -> FastAPI:
+    runtime_settings = settings or get_settings()
     application = FastAPI(
         title="LectraLLM AI Service",
-        version="0.1.0",
-        description="Foundation service for future lecture-analysis workloads.",
+        version="0.3.0",
+        description="Local media-processing service for LectraLLM.",
     )
 
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.allowed_origins,
+        allow_origins=runtime_settings.allowed_origins,
         allow_credentials=True,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
+    )
+
+    application.include_router(
+        create_transcription_router(runtime_settings, transcriber),
     )
 
     @application.get("/health", tags=["system"])
     async def health() -> dict[str, str]:
-        return {"status": "ok", "service": settings.service_name}
+        return {"status": "ok", "service": runtime_settings.service_name}
 
     return application
 

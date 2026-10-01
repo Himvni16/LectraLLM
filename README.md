@@ -4,15 +4,15 @@ LectraLLM is an AI-powered lecture content comparison tool that analyzes a lectu
 
 ## Current phase
 
-**Phase 2 — Video + PDF Upload is complete.** The repository includes the Phase 0 foundation, the Phase 1 minimal relational schema, and a local-development workflow for submitting one lecture video with its corresponding PDF.
+**Phase 3 — Video Transcription is complete.** The repository includes the Phase 0 foundation, the Phase 1 minimal relational schema, the Phase 2 upload workflow, and local lecture transcription through the FastAPI AI service.
 
-Transcription, PDF extraction, topic extraction, semantic comparison, percentages, graphs, and analysis results are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
+PDF extraction, topic extraction, semantic comparison, percentages, graphs, and final analysis results are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
 
 ## Architecture overview
 
 - **Next.js + React + TypeScript + Tailwind CSS:** primary web application at the repository root.
 - **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, and future topic-match results.
-- **FastAPI + Python:** isolated service under `ai-service/` for future media, document, and AI processing.
+- **FastAPI + Python:** isolated service under `ai-service/` that performs local faster-whisper transcription and will later own document and AI processing.
 
 See [docs/architecture.md](docs/architecture.md) for responsibilities and the planned future data flow.
 
@@ -47,6 +47,7 @@ The web app reads `.env.local`, which is intentionally ignored by Git.
 | `AI_SERVICE_URL` | Yes | Base URL for the FastAPI service, normally `http://127.0.0.1:8000` |
 | `VIDEO_MAX_SIZE_MB` | No | Lecture video limit in MiB; defaults to `250` |
 | `PDF_MAX_SIZE_MB` | No | Lecture PDF limit in MiB; defaults to `25` |
+| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Web-to-AI transcription timeout; defaults to `1800` seconds |
 
 Copy `.env.example` and adjust credentials. Required server values are validated when the Next.js server starts and produce an actionable error when absent.
 
@@ -97,6 +98,31 @@ python -m uvicorn app.main:app --reload --port 8000
 ```
 
 The service is available at `http://127.0.0.1:8000`. Verify it at `http://127.0.0.1:8000/health`.
+
+The AI service supports these optional values in `ai-service/.env`:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `WHISPER_MODEL` | `base` | faster-whisper model name or local model path |
+| `WHISPER_DEVICE` | `cpu` | CTranslate2 execution device |
+| `WHISPER_COMPUTE_TYPE` | `int8` | CTranslate2 compute type |
+| `TRANSCRIPTION_MAX_SIZE_MB` | `250` | Maximum media size accepted by `/transcribe` |
+
+The model is initialized lazily on the first real transcription request. When a model name such as `base` is used, faster-whisper downloads its model files to the standard Hugging Face cache on first use. CPU with `int8` is the development default; no GPU is required.
+
+faster-whisper decodes media through PyAV, whose wheel bundles the required FFmpeg libraries. A separate system FFmpeg installation is therefore not required for this workflow.
+
+## Transcription workflow
+
+After a successful upload, open `/analyses/<analysis-id>` or follow the **Open analysis** link. Select **Transcribe lecture** to run this flow:
+
+```text
+UPLOADED → TRANSCRIBING → EXTRACTING_PDF
+```
+
+Next.js resolves only the stored video attached to the selected `Analysis`, uploads its bytes to FastAPI `POST /transcribe`, and stores the returned full text in `Analysis.transcriptText`. FastAPI uses a temporary media file and removes it after success or failure. The original uploaded video remains unchanged.
+
+If transcription fails, the analysis becomes `FAILED` and can be retried from the analysis page. Browser responses do not include internal storage or temporary paths.
 
 ## Run both services
 
@@ -150,8 +176,7 @@ python -c "from app.main import app; print(app.title)"
 
 ## Planned future phases
 
-- **Phase 3:** extract audio and transcribe the uploaded lecture video.
 - **Phase 4:** extract text from the corresponding PDF.
 - Later phases: topic extraction, semantic comparison, topic-wise coverage percentages, graphs, and the final analysis interface.
 
-None of those processing or analysis capabilities is implemented in Phase 2.
+None of those Phase 4+ processing or analysis capabilities is implemented in Phase 3.

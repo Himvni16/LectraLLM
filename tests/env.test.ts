@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   getAiServiceUrl,
+  getAiTranscriptionTimeoutMs,
   getUploadLimits,
   requireServerEnv,
   validateServerEnv,
@@ -11,6 +12,8 @@ const originalDatabaseUrl = process.env.DATABASE_URL;
 const originalAiServiceUrl = process.env.AI_SERVICE_URL;
 const originalVideoMaxSize = process.env.VIDEO_MAX_SIZE_MB;
 const originalPdfMaxSize = process.env.PDF_MAX_SIZE_MB;
+const originalTranscriptionTimeout =
+  process.env.AI_TRANSCRIPTION_TIMEOUT_SECONDS;
 
 afterEach(() => {
   if (originalDatabaseUrl === undefined) {
@@ -35,6 +38,12 @@ afterEach(() => {
     delete process.env.PDF_MAX_SIZE_MB;
   } else {
     process.env.PDF_MAX_SIZE_MB = originalPdfMaxSize;
+  }
+
+  if (originalTranscriptionTimeout === undefined) {
+    delete process.env.AI_TRANSCRIPTION_TIMEOUT_SECONDS;
+  } else {
+    process.env.AI_TRANSCRIPTION_TIMEOUT_SECONDS = originalTranscriptionTimeout;
   }
 });
 
@@ -78,5 +87,11 @@ describe("server environment validation", () => {
       videoMaxSizeBytes: 300 * 1024 * 1024,
       pdfMaxSizeBytes: 30 * 1024 * 1024,
     });
+  });
+
+  it("provides a configurable AI transcription timeout", () => {
+    process.env.AI_TRANSCRIPTION_TIMEOUT_SECONDS = "120";
+
+    expect(getAiTranscriptionTimeoutMs()).toBe(120_000);
   });
 });

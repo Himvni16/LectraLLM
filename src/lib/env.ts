@@ -13,6 +13,8 @@ export interface UploadLimits {
   pdfMaxSizeBytes: number;
 }
 
+const DEFAULT_AI_TRANSCRIPTION_TIMEOUT_SECONDS = 1800;
+
 export function requireServerEnv(name: ServerEnvName): string {
   const value = process.env[name]?.trim();
 
@@ -71,8 +73,18 @@ export function getUploadLimits(): UploadLimits {
   };
 }
 
+export function getAiTranscriptionTimeoutMs(): number {
+  return (
+    readPositiveNumber(
+      "AI_TRANSCRIPTION_TIMEOUT_SECONDS",
+      DEFAULT_AI_TRANSCRIPTION_TIMEOUT_SECONDS,
+    ) * 1000
+  );
+}
+
 export function validateServerEnv(): void {
   requireServerEnv("DATABASE_URL");
   getAiServiceUrl();
   getUploadLimits();
+  getAiTranscriptionTimeoutMs();
 }
