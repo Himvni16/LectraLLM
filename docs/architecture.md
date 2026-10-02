@@ -1,13 +1,13 @@
 # LectraLLM architecture
 
-> Phase 7 status: local video transcription, text-based PDF extraction, separate VIDEO/PDF topic extraction, PDF-directed semantic comparison, and a database-backed analysis dashboard are implemented. Phase 8 deployment work remains **NOT IMPLEMENTED**.
+> Phase 8 status: the Phase 0–7 workflow is implemented and covered by final integration, failure, retry, boundary, and dashboard tests. Phase 8 adds hardening and deployment documentation only; it changes neither the database schema nor analysis behavior.
 
 ## High-level architecture
 
 LectraLLM is an AI-powered lecture content comparison tool that analyzes a lecture video and its corresponding PDF, compares topic coverage, and produces percentage-based and graphical analysis. It is split into two application services backed by PostgreSQL:
 
 - **Next.js web application:** the user-facing application and future product API. It owns relational data access through Prisma.
-- **FastAPI AI service:** a separate internal service reserved for future compute-heavy document, media, embedding, and LLM workflows.
+- **FastAPI AI service:** a separate internal service for compute-heavy document, media, embedding, and LLM workflows.
 - **PostgreSQL:** the durable relational system of record, accessed at runtime through Prisma's Neon serverless driver adapter.
 
 Keeping the future AI pipeline outside the web process allows its Python dependencies and compute profile to evolve independently without coupling them to the user-facing application.
@@ -36,7 +36,7 @@ Implemented through Phase 7:
 - Display summary metrics, one match-distribution chart, topic progress bars, missing topics, and detailed comparisons for `COMPLETED` analyses.
 - Preserve lecture/PDF topics and collapsible access to both source texts.
 
-Phase 8 deployment work is **NOT IMPLEMENTED**. LectraLLM has no LMS, authentication, user, course, role, syllabus-management, student-account, notification, or administration scope.
+Phase 8 changes no Next.js product behavior. LectraLLM has no LMS, authentication, user, course, role, syllabus-management, student-account, notification, or administration scope.
 
 ## FastAPI responsibilities
 
@@ -81,7 +81,7 @@ Phase 7 requires no schema change. The analysis page loads the already-stored sc
 
 Development uploads are stored under `storage/videos/` and `storage/pdfs/`. Physical filenames are generated UUIDs rather than user-provided names, paths are constrained to the storage root, and the entire runtime directory is ignored by Git. If database creation fails after storage, the upload service attempts to remove both files.
 
-This local filesystem implementation is development-only. No external or production storage provider is configured in Phase 2.
+This local filesystem implementation has no external object-storage provider. A production deployment must mount durable shared storage at `storage/`; an ephemeral filesystem is unsafe because the database stores paths to these files. Independently scaled instances are also unsafe unless every instance can access the same persistent volume.
 
 ## Transcription boundary
 
@@ -111,7 +111,7 @@ The PDF is the reference source: every PDF topic receives exactly one result con
 
 The dashboard exists only in the Next.js presentation layer and renders only when an analysis is `COMPLETED`. Its pure helper calculates `coverage = non-MISSING PDF topics / total PDF topics * 100`, counts every `MatchType`, and maps stored similarities to display percentages while preserving database order. Recharts renders one match-distribution bar chart; topic-level similarity uses accessible progress bars. No dashboard value is accepted from the browser or written back to PostgreSQL.
 
-## Planned future data flow
+## Implemented data flow
 
 The flow through the Phase 7 report is implemented:
 
@@ -129,4 +129,4 @@ Topic Analysis
 PDF Processing
 ```
 
-The web application accepts and records the video/PDF input, transcribes the lecture, extracts readable PDF text, stores separate VIDEO/PDF topics, persists Phase 6 best-match similarities, and derives the Phase 7 report from those results. Phase 8 deployment work remains **NOT IMPLEMENTED**.
+The web application accepts and records the video/PDF input, transcribes the lecture, extracts readable PDF text, stores separate VIDEO/PDF topics, persists Phase 6 best-match similarities, and derives the Phase 7 report from those results. Phase 8 hardening does not add another processing step. Production topology and operational requirements are documented in [deployment.md](deployment.md).

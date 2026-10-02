@@ -7,14 +7,13 @@ export async function GET() {
     const health = await getAiServiceHealth();
     return NextResponse.json(health);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "AI service is unavailable.";
+    console.error("AI service health check failed.", error);
 
     return NextResponse.json(
       {
         status: "unavailable",
         service: "lectrallm-ai",
-        message,
+        message: "The AI service health check is unavailable.",
       },
       { status: 503 },
     );

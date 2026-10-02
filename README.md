@@ -4,9 +4,14 @@ LectraLLM is an AI-powered lecture content comparison tool that analyzes a lectu
 
 ## Current phase
 
-**Phase 7 — Analysis Dashboard is complete.** The repository includes the Phase 0 foundation, the relational and upload workflows, local lecture transcription, text-based PDF extraction, separate LLM-based topic extraction, local embedding-based comparison, and a completed-analysis report derived from stored comparison results.
+**Phase 8 — final testing, hardening, documentation cleanup, and deployment readiness is complete.** The repository includes the Phase 0 foundation, the relational and upload workflows, local lecture transcription, text-based PDF extraction, separate LLM-based topic extraction, local embedding-based comparison, and a completed-analysis report derived from stored comparison results.
 
-Phase 8 deployment work is **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, syllabus management, student accounts, notifications, or administration features.
+Phase 8 adds no product functionality or database schema changes. LectraLLM is not an LMS and does not include users, courses, roles, syllabus management, student accounts, notifications, or administration features.
+
+```text
+Upload video + PDF → Transcribe → Extract PDF text → Extract VIDEO/PDF topics
+→ Compare topics → Persist matches and score → Render completed dashboard
+```
 
 ## Architecture overview
 
@@ -14,7 +19,7 @@ Phase 8 deployment work is **not implemented**. LectraLLM is not an LMS and does
 - **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, best-match results, and overall similarity. Runtime queries use Prisma's Neon serverless adapter.
 - **FastAPI + Python:** isolated service under `ai-service/` that performs local faster-whisper transcription, PyMuPDF text extraction, Gemini-backed structured topic extraction, and local sentence-transformer comparison.
 
-See [docs/architecture.md](docs/architecture.md) for responsibilities and the planned future data flow.
+See [docs/architecture.md](docs/architecture.md) for service responsibilities and [docs/deployment.md](docs/deployment.md) for a provider-neutral production checklist.
 
 ## Prerequisites
 
@@ -59,7 +64,7 @@ The AI service optionally reads `ai-service/.env`. Its `AI_CORS_ORIGINS` value i
 1. Provision a PostgreSQL database, locally or through Neon.
 2. Set `DATABASE_URL` in `.env.local` to the pooled runtime URL. Neon pooled hostnames normally include `-pooler`. The singleton application client passes this URL to `PrismaNeon`, which connects through Neon's serverless driver rather than Prisma's default TCP query-engine transport.
 3. Set `DIRECT_URL` to the corresponding direct, non-pooler URL. Prisma CLI, schema validation, and migration operations continue to use this direct connection through the Prisma datasource configuration.
-4. Apply the checked-in migrations with `npx prisma migrate dev`.
+4. For local development, apply the checked-in migrations with `npx prisma migrate dev`. For production, use `npx prisma migrate deploy`.
 5. Run `npm run prisma:generate`.
 
 The migration creates only `Analysis`, `Topic`, and `TopicMatch`, plus their supporting enums and indexes. For optional development sample data, run `npm run prisma:seed` after applying the migration.
@@ -90,7 +95,9 @@ storage/
 └── pdfs/
 ```
 
-Physical filenames are collision-safe generated UUIDs; original sanitized filenames are retained in the database. The runtime directory is ignored by Git. Local filesystem storage is development-only and is not intended for distributed or production deployment.
+Physical filenames are collision-safe generated UUIDs; original sanitized filenames are retained in the database. The runtime directory is ignored by Git.
+
+> **Production storage requirement:** uploads currently remain on the local filesystem. Any production host must attach persistent storage at the application `storage/` directory and keep all requests on a topology that can access the same disk. Ephemeral or independently scaled web instances can lose uploads or make them unavailable. An external object-storage implementation is not included.
 
 ## AI service setup
 
@@ -193,6 +200,12 @@ python -m uvicorn app.main:app --reload --port 8000
 
 With both running, the web-side proxy health endpoint is `http://localhost:3000/api/ai-health`.
 
+## Production deployment
+
+LectraLLM needs three deployable resources: the Next.js web service, the FastAPI AI service, and PostgreSQL/Neon. The web service also requires a persistent disk for `storage/`; the AI service needs writable temporary space and should retain its Hugging Face model cache when practical. Configure secrets through the hosting platform, run checked-in migrations with `npx prisma migrate deploy`, and build the web application with Node.js 20.19+ (Node.js 22 LTS recommended).
+
+The complete commands, environment variables, storage/model-cache considerations, health checks, and troubleshooting guidance are in [docs/deployment.md](docs/deployment.md). Phase 8 makes the repository deployment-ready but does not deploy it to a hosting provider.
+
 ## Quality checks and tests
 
 Run web checks from the repository root:
@@ -225,8 +238,6 @@ python -c "from app.main import app; print(app.title)"
 | `npm run prisma:generate` | Generate Prisma Client |
 | `npm run prisma:seed` | Seed one repeatable development analysis |
 
-## Planned future phases
+## Scope after Phase 8
 
-- **Phase 8 and later:** deployment and explicitly scoped future production work.
-
-No Phase 8 deployment work is implemented in Phase 7.
+Further product work is intentionally unspecified and must be separately scoped. Phase 8 does not add authentication, LMS features, OCR, syllabus processing, notifications, administration, or new analysis behavior.

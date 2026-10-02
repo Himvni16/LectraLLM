@@ -9,6 +9,7 @@ import type {
 } from "@/lib/uploads/types";
 import {
   parseUploadFormData,
+  sanitizeOriginalFileName,
   UploadRequestError,
   validateUploadPair,
 } from "@/lib/uploads/validation";
@@ -68,6 +69,16 @@ describe("upload form validation", () => {
     );
   });
 
+  it.each([
+    videoFile("lecture.txt", "video/mp4"),
+    videoFile("lecture.mp4", "text/plain"),
+  ])("requires both an allowed video extension and MIME type", (video) => {
+    expectUploadError(
+      () => validateUploadPair({ video, pdf: pdfFile() }, limits),
+      "INVALID_VIDEO_TYPE",
+    );
+  });
+
   it("rejects an invalid PDF type", () => {
     expectUploadError(
       () =>
@@ -79,6 +90,38 @@ describe("upload form validation", () => {
           limits,
         ),
       "INVALID_PDF_TYPE",
+    );
+  });
+
+  it("rejects a PDF MIME type paired with a non-PDF extension", () => {
+    expectUploadError(
+      () =>
+        validateUploadPair(
+          { video: videoFile(), pdf: pdfFile("notes.txt", "application/pdf") },
+          limits,
+        ),
+      "INVALID_PDF_TYPE",
+    );
+  });
+
+  it.each([
+    {
+      label: "video",
+      upload: { video: videoFile("lecture.mp4", "video/mp4", 0), pdf: pdfFile() },
+      code: "EMPTY_VIDEO",
+    },
+    {
+      label: "PDF",
+      upload: { video: videoFile(), pdf: pdfFile("notes.pdf", "application/pdf", 0) },
+      code: "EMPTY_PDF",
+    },
+  ])("rejects an empty $label", ({ upload, code }) => {
+    expectUploadError(() => validateUploadPair(upload, limits), code);
+  });
+
+  it("sanitizes an unsafe browser-supplied filename", () => {
+    expect(sanitizeOriginalFileName("C:\\fakepath\\..\\unsafe\u0000.pdf")).toBe(
+      "unsafe.pdf",
     );
   });
 

@@ -63,5 +63,13 @@ describe("local upload storage", () => {
     await expect(readFile(storedPdf.cleanupPath, "utf8")).resolves.toBe(
       "pdf-bytes",
     );
+
+    const duplicate = await storage.save(
+      validated.video.file,
+      "video",
+      validated.video.extension,
+    );
+    expect(duplicate.storagePath).not.toBe(storedVideo.storagePath);
+    expect(duplicate.cleanupPath).not.toBe(storedVideo.cleanupPath);
   });
 });
