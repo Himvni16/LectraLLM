@@ -70,10 +70,11 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
           Analysis
         </p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-          Lecture processing
+          Lecture analysis
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
-          Review the source text, extracted topics, and PDF coverage comparison.
+          LectraLLM processes the lecture and PDF automatically, then shows the
+          completed coverage dashboard here.
         </p>
         <TranscriptionPanel
           initialAnalysis={{

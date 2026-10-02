@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import type { UploadLimits } from "@/lib/env";
 import type { UploadSuccessResponse } from "@/lib/uploads/types";
@@ -21,16 +21,15 @@ interface ErrorResponse {
 }
 
 export function UploadForm({ limits }: UploadFormProps) {
+  const router = useRouter();
   const [video, setVideo] = useState<File | null>(null);
   const [pdf, setPdf] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<UploadSuccessResponse | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setResult(null);
 
     if (!video || !pdf) {
       setError("Select one lecture video and one corresponding PDF.");
@@ -68,7 +67,8 @@ export function UploadForm({ limits }: UploadFormProps) {
         throw new Error(message ?? "The lecture could not be uploaded.");
       }
 
-      setResult(payload as UploadSuccessResponse);
+      const result = payload as UploadSuccessResponse;
+      router.push(`/analyses/${encodeURIComponent(result.analysisId)}`);
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
@@ -120,44 +120,20 @@ export function UploadForm({ limits }: UploadFormProps) {
           disabled={isSubmitting || !video || !pdf}
           type="submit"
         >
-          {isSubmitting ? "Uploading…" : "Upload lecture"}
+          {isSubmitting ? "Uploading & preparing…" : "Upload & Analyze"}
         </button>
       </form>
 
       <aside aria-live="polite">
-        {result ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-950 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700">
-              Upload complete
-            </p>
-            <h2 className="mt-2 text-xl font-semibold">
-              Lecture uploaded successfully
-            </h2>
-            <dl className="mt-6 space-y-4 text-sm">
-              <ResultRow label="Video" value={result.videoFileName} />
-              <ResultRow label="PDF" value={result.pdfFileName} />
-              <ResultRow label="Status" value="Uploaded" />
-              <ResultRow label="Analysis ID" value={result.analysisId} />
-            </dl>
-            <Link
-              className="mt-6 inline-flex min-h-10 items-center justify-center rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800"
-              href={`/analyses/${encodeURIComponent(result.analysisId)}`}
-            >
-              Open analysis
-            </Link>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm leading-6 text-slate-600">
-            Both files are validated on the server. Uploading only stores the
-            files and creates an analysis reference; processing begins in later
-            phases.
-          </div>
-        )}
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm leading-6 text-slate-600">
+          Both files are validated on the server. After upload, LectraLLM opens
+          the analysis page and automatically runs transcription, extraction,
+          and comparison.
+        </div>
       </aside>
     </div>
   );
 }
-
 interface FileFieldProps {
   accept: string;
   description: string;
@@ -192,15 +168,6 @@ function FileField({
       <p className="mt-2 truncate text-sm text-slate-700">
         {file ? file.name : "No file selected"}
       </p>
-    </div>
-  );
-}
-
-function ResultRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="font-medium text-emerald-700">{label}</dt>
-      <dd className="mt-1 break-words">{value}</dd>
     </div>
   );
 }

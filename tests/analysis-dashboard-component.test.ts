@@ -110,7 +110,23 @@ describe("analysis dashboard rendering", () => {
     );
 
     expect(html).not.toContain("Analysis dashboard");
-    expect(html).toContain("Compare Lecture &amp; PDF");
-    expect(html).toContain("Lecture transcript");
+    expect(html).toContain("Analyzing your lecture");
+    expect(html).toContain("Comparing lecture and PDF");
+    expect(html).not.toContain("Compare Lecture &amp; PDF");
+    expect(html).not.toContain("Transcribe lecture");
+  });
+
+  it("shows one safe retry action for a failed analysis", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(TranscriptionPanel, {
+        initialAnalysis: analysis("FAILED"),
+      }),
+    );
+
+    expect(html).toContain("Retry Analysis");
+    expect(html).toContain("retry from where it stopped");
+    expect(html).not.toContain("Retry transcription");
+    expect(html).not.toContain("Retry PDF extraction");
+    expect(html).not.toContain("Retry topic extraction");
   });
 });

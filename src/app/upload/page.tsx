@@ -30,8 +30,8 @@ export default function UploadPage() {
           Upload to LectraLLM
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
-          Select one lecture video and the corresponding PDF. This phase stores
-          both files securely for later comparison.
+          Select one lecture video and the corresponding PDF. LectraLLM will
+          upload both files and run the full analysis automatically.
         </p>
         <UploadForm limits={limits} />
       </section>
