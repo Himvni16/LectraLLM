@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
+from app.comparison import TopicComparer
+from app.comparison_api import create_comparison_router
 from app.pdf_extraction import PdfExtractor
 from app.pdf_extraction_api import create_pdf_extraction_router
 from app.topic_extraction import TopicExtractor
@@ -16,12 +18,13 @@ def create_app(
     transcriber: Transcriber | None = None,
     pdf_extractor: PdfExtractor | None = None,
     topic_extractor: TopicExtractor | None = None,
+    topic_comparer: TopicComparer | None = None,
 ) -> FastAPI:
     runtime_settings = settings or get_settings()
     application = FastAPI(
         title="LectraLLM AI Service",
-        version="0.5.0",
-        description="Media, document, and topic-processing service for LectraLLM.",
+        version="0.6.0",
+        description="Media, document, topic, and comparison service for LectraLLM.",
     )
 
     application.add_middleware(
@@ -40,6 +43,9 @@ def create_app(
     )
     application.include_router(
         create_topic_extraction_router(runtime_settings, topic_extractor),
+    )
+    application.include_router(
+        create_comparison_router(runtime_settings, topic_comparer),
     )
 
     @application.get("/health", tags=["system"])

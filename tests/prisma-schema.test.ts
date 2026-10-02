@@ -69,13 +69,14 @@ describe("Phase 1 Prisma types", () => {
     const topicMatch: TopicMatch = {
       id: "match-1",
       analysisId: "analysis-1",
-      videoTopicId: "video-topic-1",
+      videoTopicId: null,
       pdfTopicId: "pdf-topic-1",
       similarityScore: new Prisma.Decimal("0.9700"),
       matchType: MatchType.STRONG,
       createdAt,
     };
 
+    expect(topicMatch.videoTopicId).toBeNull();
     expect(topicMatch.similarityScore.toString()).toBe("0.97");
     expect(Object.values(MatchType)).toEqual([
       "STRONG",

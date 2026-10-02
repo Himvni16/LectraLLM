@@ -4,15 +4,15 @@ LectraLLM is an AI-powered lecture content comparison tool that analyzes a lectu
 
 ## Current phase
 
-**Phase 5 — Topic Extraction is complete.** The repository includes the Phase 0 foundation, the Phase 1 minimal relational schema, the Phase 2 upload workflow, local lecture transcription, text-based PDF extraction, and separate LLM-based topic extraction for lecture and PDF text.
+**Phase 6 — Topic Comparison is complete.** The repository includes the Phase 0 foundation, the Phase 1 relational schema, the Phase 2 upload workflow, local lecture transcription, text-based PDF extraction, separate LLM-based topic extraction, and local embedding-based comparison of each PDF topic against the lecture topics.
 
-Semantic comparison, embeddings, percentages, graphs, and final analysis results are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
+Dashboard charts, broader coverage analytics, and Phase 7 reporting are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
 
 ## Architecture overview
 
 - **Next.js + React + TypeScript + Tailwind CSS:** primary web application at the repository root.
-- **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, and future topic-match results. Runtime queries use Prisma's Neon serverless adapter.
-- **FastAPI + Python:** isolated service under `ai-service/` that performs local faster-whisper transcription, PyMuPDF text extraction, and Gemini-backed structured topic extraction.
+- **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, best-match results, and overall similarity. Runtime queries use Prisma's Neon serverless adapter.
+- **FastAPI + Python:** isolated service under `ai-service/` that performs local faster-whisper transcription, PyMuPDF text extraction, Gemini-backed structured topic extraction, and local sentence-transformer comparison.
 
 See [docs/architecture.md](docs/architecture.md) for responsibilities and the planned future data flow.
 
@@ -59,7 +59,7 @@ The AI service optionally reads `ai-service/.env`. Its `AI_CORS_ORIGINS` value i
 1. Provision a PostgreSQL database, locally or through Neon.
 2. Set `DATABASE_URL` in `.env.local` to the pooled runtime URL. Neon pooled hostnames normally include `-pooler`. The singleton application client passes this URL to `PrismaNeon`, which connects through Neon's serverless driver rather than Prisma's default TCP query-engine transport.
 3. Set `DIRECT_URL` to the corresponding direct, non-pooler URL. Prisma CLI, schema validation, and migration operations continue to use this direct connection through the Prisma datasource configuration.
-4. Apply the Phase 1 migration with `npx prisma migrate dev`.
+4. Apply the checked-in migrations with `npx prisma migrate dev`.
 5. Run `npm run prisma:generate`.
 
 The migration creates only `Analysis`, `Topic`, and `TopicMatch`, plus their supporting enums and indexes. For optional development sample data, run `npm run prisma:seed` after applying the migration.
@@ -119,8 +119,9 @@ The AI service reads these values from `ai-service/.env`:
 | `GEMINI_API_KEY` | No default | Required only when running topic extraction; keep this server-side |
 | `GEMINI_TOPIC_MODEL` | `gemini-3.5-flash-lite` | Free-tier structured-output model used for topic extraction |
 | `TOPIC_CHUNK_CHARS` | `12000` | Maximum source characters processed in one model request |
+| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Local sentence-transformer model used for Phase 6 comparison |
 
-The model is initialized lazily on the first real transcription request. When a model name such as `base` is used, faster-whisper downloads its model files to the standard Hugging Face cache on first use. CPU with `int8` is the development default; no GPU is required.
+The transcription and embedding models are initialized lazily. On their first real use, faster-whisper and sentence-transformers download configured model files to the standard Hugging Face cache. CPU with `int8` is the transcription development default; no GPU is required. The first comparison can therefore take longer while `all-MiniLM-L6-v2` is downloaded and loaded.
 
 faster-whisper decodes media through PyAV, whose wheel bundles the required FFmpeg libraries. A separate system FFmpeg installation is therefore not required for this workflow.
 
@@ -152,11 +153,19 @@ Phase 4 supports text-based PDFs only. Scanned or image-only PDFs return `No ext
 
 For an analysis at `EXTRACTING_TOPICS`, select **Extract topics** on the analysis page. Next.js sends the transcript and PDF text to FastAPI separately as `VIDEO` and `PDF` sources. FastAPI uses the official Google Gen AI Python SDK with Gemini Structured Outputs and the configured `GEMINI_TOPIC_MODEL`; the API key remains inside the Python service and is never returned to Next.js or the browser. The default `gemini-3.5-flash-lite` model is available on the Gemini Developer API free tier and is intended for low-cost document parsing and simple structured extraction.
 
-Long source text is split deterministically at paragraph and sentence boundaries where practical, without splitting ordinary words. Each chunk is processed independently, then exact normalized duplicates are merged while retaining the highest confidence. The source text is not sent to an embedding service and the two topic sets are not compared.
+Long source text is split deterministically at paragraph and sentence boundaries where practical, without splitting ordinary words. Each chunk is processed independently, then exact normalized duplicates are merged while retaining the highest confidence. The source text is not sent to an embedding service during extraction.
 
 After both source extractions succeed, one database transaction replaces only the current analysis's previous topics, stores lecture topics as `VIDEO`, stores PDF topics/subtopics as `PDF`, and advances the analysis to `COMPARING`. If either extraction fails, no partial replacement is committed, both source texts are preserved, and status becomes `FAILED` for a safe retry.
 
-The existing `Topic` model is sufficient, so Phase 5 adds no schema migration. `TopicMatch` and `overallSimilarityScore` remain untouched.
+The existing `Topic` model is sufficient, so Phase 5 adds no schema migration.
+
+## Topic comparison workflow
+
+For an analysis at `COMPARING`, select **Compare Lecture & PDF**. Next.js loads the stored topic IDs and names and calls FastAPI `POST /compare-topics`; the browser never supplies similarity values. FastAPI uses the local `sentence-transformers/all-MiniLM-L6-v2` model to embed topic names and calculate cosine similarity. Gemini is not called during comparison, and FastAPI has no database access.
+
+PDF topics are the reference set. For every PDF topic, FastAPI returns only its highest-scoring VIDEO topic. Similarities are clamped to `0..1` and classified using `STRONG >= 0.75`, `PARTIAL >= 0.55`, `WEAK >= 0.35`, and `MISSING < 0.35`. A missing result keeps its actual low score but stores no VIDEO topic ID.
+
+Next.js validates that the response contains exactly one correctly classified result per PDF topic. A single Prisma transaction replaces old `TopicMatch` rows, stores the new matches, sets `overallSimilarityScore` to `average(per-PDF best similarities) * 100`, and changes status to `COMPLETED`. Failures change the status to `FAILED` and can be retried with the existing topics intact. The Phase 6 migration makes only `TopicMatch.videoTopicId` nullable so missing coverage is represented without fake topics.
 
 ## Run both services
 
@@ -210,7 +219,6 @@ python -c "from app.main import app; print(app.title)"
 
 ## Planned future phases
 
-- **Phase 6:** semantically compare the separately extracted VIDEO and PDF topics.
-- Later phases: topic-wise coverage percentages, graphs, and the final analysis interface.
+- **Phase 7 and later:** richer coverage reporting, charts, and the final analytics dashboard.
 
-None of those Phase 6+ comparison or reporting capabilities is implemented in Phase 5.
+No Phase 7 dashboard or graph functionality is implemented in Phase 6.

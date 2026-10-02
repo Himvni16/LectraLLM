@@ -8,7 +8,7 @@ import { withPrismaRetry } from "@/lib/prisma-retry";
 
 export const metadata: Metadata = {
   title: "Lecture Analysis | LectraLLM",
-  description: "View extracted lecture and PDF topics.",
+  description: "View extracted topics and lecture-to-PDF coverage results.",
 };
 
 export const dynamic = "force-dynamic";
@@ -29,6 +29,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
         status: true,
         transcriptText: true,
         pdfText: true,
+        overallSimilarityScore: true,
         topics: {
           select: {
             id: true,
@@ -37,6 +38,16 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
             confidenceScore: true,
           },
           orderBy: [{ source: "asc" }, { createdAt: "asc" }],
+        },
+        topicMatches: {
+          select: {
+            id: true,
+            similarityScore: true,
+            matchType: true,
+            pdfTopic: { select: { id: true, name: true } },
+            videoTopic: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: "asc" },
         },
       },
     }),
@@ -62,17 +73,32 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
           Lecture processing
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
-          Review the source text and extract separate lecture and PDF topics.
+          Review the source text, extracted topics, and PDF coverage comparison.
         </p>
         <TranscriptionPanel
           initialAnalysis={{
-            ...analysis,
+            id: analysis.id,
+            videoFileName: analysis.videoFileName,
+            pdfFileName: analysis.pdfFileName,
             status: analysis.status.toString(),
+            transcriptText: analysis.transcriptText,
+            pdfText: analysis.pdfText,
+            overallSimilarityScore:
+              analysis.overallSimilarityScore?.toNumber() ?? null,
             topics: analysis.topics.map((topic) => ({
               id: topic.id,
               name: topic.name,
               source: topic.source.toString(),
               confidence: topic.confidenceScore?.toNumber() ?? null,
+            })),
+            comparisonMatches: analysis.topicMatches.map((match) => ({
+              id: match.id,
+              pdfTopicId: match.pdfTopic.id,
+              pdfTopicName: match.pdfTopic.name,
+              videoTopicId: match.videoTopic?.id ?? null,
+              videoTopicName: match.videoTopic?.name ?? null,
+              similarityScore: match.similarityScore.toNumber(),
+              matchType: match.matchType.toString(),
             })),
           }}
         />

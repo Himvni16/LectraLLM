@@ -67,13 +67,13 @@ model Topic {
 model TopicMatch {
   id              String    @id @default(cuid())
   analysisId      String
-  videoTopicId    String
+  videoTopicId    String?
   pdfTopicId      String
   similarityScore Decimal   @db.Decimal(5, 4)
   matchType       MatchType
   createdAt       DateTime  @default(now())
   analysis        Analysis  @relation(fields: [analysisId], references: [id], onDelete: Cascade)
-  videoTopic      Topic     @relation("VideoTopicMatches", fields: [videoTopicId], references: [id], onDelete: Cascade)
+  videoTopic      Topic?    @relation("VideoTopicMatches", fields: [videoTopicId], references: [id], onDelete: Cascade)
   pdfTopic        Topic     @relation("PdfTopicMatches", fields: [pdfTopicId], references: [id], onDelete: Cascade)
 
   @@index([analysisId])

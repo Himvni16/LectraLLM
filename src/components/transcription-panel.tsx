@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { PdfExtractionSuccessResponse } from "@/lib/pdf-extraction/types";
+import type { TopicComparisonSuccessResponse } from "@/lib/topic-comparison/types";
 import type { TopicExtractionSuccessResponse } from "@/lib/topic-extraction/types";
 import type { TranscriptionSuccessResponse } from "@/lib/transcription/types";
 
@@ -20,7 +21,19 @@ interface AnalysisView {
   status: string;
   transcriptText: string | null;
   pdfText: string | null;
+  overallSimilarityScore: number | null;
   topics: AnalysisTopicView[];
+  comparisonMatches: AnalysisComparisonView[];
+}
+
+interface AnalysisComparisonView {
+  id?: string;
+  pdfTopicId: string;
+  pdfTopicName: string;
+  videoTopicId: string | null;
+  videoTopicName: string | null;
+  similarityScore: number;
+  matchType: string;
 }
 
 interface TranscriptionPanelProps {
@@ -49,6 +62,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isExtractingPdf, setIsExtractingPdf] = useState(false);
   const [isExtractingTopics, setIsExtractingTopics] = useState(false);
+  const [isComparing, setIsComparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canTranscribe =
     analysis.status === "UPLOADED" ||
@@ -62,7 +76,15 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
     analysis.status === "EXTRACTING_TOPICS" ||
     (analysis.status === "FAILED" &&
       Boolean(analysis.transcriptText) &&
-      Boolean(analysis.pdfText));
+      Boolean(analysis.pdfText) &&
+      analysis.topics.length === 0);
+  const hasVideoTopics = analysis.topics.some(
+    (topic) => topic.source === "VIDEO",
+  );
+  const hasPdfTopics = analysis.topics.some((topic) => topic.source === "PDF");
+  const canCompare =
+    analysis.status === "COMPARING" ||
+    (analysis.status === "FAILED" && hasVideoTopics && hasPdfTopics);
 
   async function handleTranscription() {
     const previousStatus = analysis.status;
@@ -149,6 +171,8 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
         status: result.status,
         pdfText: result.text,
         topics: [],
+        overallSimilarityScore: null,
+        comparisonMatches: [],
       }));
     } catch (extractionError) {
       const nextStatus =
@@ -207,6 +231,8 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
             source: "PDF",
           })),
         ],
+        overallSimilarityScore: null,
+        comparisonMatches: [],
       }));
     } catch (extractionError) {
       const nextStatus =
@@ -222,6 +248,56 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
       );
     } finally {
       setIsExtractingTopics(false);
+    }
+  }
+
+  async function handleComparison() {
+    const previousStatus = analysis.status;
+    setError(null);
+    setIsComparing(true);
+    setAnalysis((current) => ({ ...current, status: "COMPARING" }));
+
+    try {
+      const response = await fetch(
+        `/api/analyses/${encodeURIComponent(analysis.id)}/compare`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as
+        | TopicComparisonSuccessResponse
+        | ErrorResponse;
+
+      if (!response.ok) {
+        const message =
+          "error" in payload ? payload.error?.message : undefined;
+        const failure = new Error(message ?? "Topics could not be compared.");
+        failure.name =
+          "error" in payload
+            ? (payload.error?.code ?? "COMPARISON_FAILED")
+            : "COMPARISON_FAILED";
+        throw failure;
+      }
+
+      const result = payload as TopicComparisonSuccessResponse;
+      setAnalysis((current) => ({
+        ...current,
+        status: result.status,
+        overallSimilarityScore: result.overallSimilarityScore,
+        comparisonMatches: result.matches,
+      }));
+    } catch (comparisonError) {
+      const nextStatus =
+        comparisonError instanceof Error &&
+        comparisonError.name === "COMPARISON_NOT_ALLOWED"
+          ? previousStatus
+          : "FAILED";
+      setAnalysis((current) => ({ ...current, status: nextStatus }));
+      setError(
+        comparisonError instanceof Error
+          ? comparisonError.message
+          : "Topics could not be compared.",
+      );
+    } finally {
+      setIsComparing(false);
     }
   }
 
@@ -283,6 +359,21 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
           </button>
         ) : null}
 
+        {canCompare ? (
+          <button
+            className="mt-7 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-wait disabled:bg-slate-400"
+            disabled={isComparing}
+            onClick={handleComparison}
+            type="button"
+          >
+            {isComparing
+              ? "Comparing topics…"
+              : analysis.status === "FAILED"
+                ? "Retry topic comparison"
+                : "Compare Lecture & PDF"}
+          </button>
+        ) : null}
+
         {error ? (
           <p
             className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
@@ -332,8 +423,70 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
             topics={analysis.topics.filter((topic) => topic.source === "PDF")}
           />
         </div>
+        {analysis.status === "COMPLETED" ? (
+          <ComparisonPanel
+            matches={analysis.comparisonMatches}
+            overallSimilarityScore={analysis.overallSimilarityScore}
+          />
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function ComparisonPanel({
+  matches,
+  overallSimilarityScore,
+}: {
+  matches: AnalysisComparisonView[];
+  overallSimilarityScore: number | null;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
+        PDF coverage comparison
+      </p>
+      <p className="mt-4 text-2xl font-semibold text-slate-950">
+        Overall similarity: {overallSimilarityScore?.toFixed(2) ?? "0.00"}%
+      </p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">
+        Each PDF topic is paired with its closest lecture topic. Missing topics
+        have no lecture match.
+      </p>
+
+      <ul className="mt-6 divide-y divide-slate-200 border-y border-slate-200">
+        {matches.map((match) => (
+          <li className="py-5" key={match.id ?? match.pdfTopicId}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-semibold text-slate-950">
+                  {match.pdfTopicName}
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {match.videoTopicName
+                    ? `Best lecture match: ${match.videoTopicName}`
+                    : "Missing from the lecture"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 sm:justify-end">
+                <span className="text-sm font-medium text-slate-700">
+                  {(match.similarityScore * 100).toFixed(1)}%
+                </span>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    match.matchType === "MISSING"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {match.matchType}
+                </span>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

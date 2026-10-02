@@ -61,6 +61,11 @@ class Settings(BaseSettings):
         le=100_000,
         validation_alias=AliasChoices("TOPIC_CHUNK_CHARS", "AI_TOPIC_CHUNK_CHARS"),
     )
+    embedding_model: str = Field(
+        default="sentence-transformers/all-MiniLM-L6-v2",
+        min_length=1,
+        validation_alias=AliasChoices("EMBEDDING_MODEL", "AI_EMBEDDING_MODEL"),
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

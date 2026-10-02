@@ -1,6 +1,6 @@
 # LectraLLM architecture
 
-> Phase 5 status: local video transcription, text-based PDF extraction, and separate VIDEO/PDF topic extraction are implemented. Semantic comparison and every later reporting stage remain **NOT IMPLEMENTED**.
+> Phase 6 status: local video transcription, text-based PDF extraction, separate VIDEO/PDF topic extraction, and PDF-directed semantic topic comparison are implemented. Phase 7 dashboards, charts, and broader reporting remain **NOT IMPLEMENTED**.
 
 ## High-level architecture
 
@@ -14,7 +14,7 @@ Keeping the future AI pipeline outside the web process allows its Python depende
 
 ## Next.js responsibilities
 
-Implemented through Phase 5:
+Implemented through Phase 6:
 
 - Render the minimal LectraLLM application shell.
 - Validate required server-side environment configuration.
@@ -29,12 +29,16 @@ Implemented through Phase 5:
 - Request separate topic extraction for the transcript (`VIDEO`) and PDF text (`PDF`).
 - Atomically replace the current analysis's topics and advance it to `COMPARING`.
 - Display both source-specific topic sets and confidence values.
+- Send only stored topic IDs and names to the internal comparison endpoint.
+- Validate one best-match result for every PDF topic.
+- Atomically replace `TopicMatch` rows, persist the overall similarity score, and advance the analysis to `COMPLETED`.
+- Display the simple Phase 6 comparison result without charts.
 
-Semantic comparison, embeddings, `TopicMatch` creation, scoring, and graphical results are **NOT IMPLEMENTED**. LectraLLM has no LMS, authentication, user, course, role, or syllabus-management scope.
+Phase 7 analytics, graphs, and dashboard presentation are **NOT IMPLEMENTED**. LectraLLM has no LMS, authentication, user, course, role, or syllabus-management scope.
 
 ## FastAPI responsibilities
 
-Implemented through Phase 5:
+Implemented through Phase 6:
 
 - Expose `GET /health`.
 - Centralize service configuration.
@@ -48,12 +52,14 @@ Implemented through Phase 5:
 - Expose `POST /extract-topics` for validated text and a `VIDEO` or `PDF` source.
 - Split long source text at paragraph/sentence boundaries and invoke a configurable Gemini structured-output model per chunk.
 - Merge normalized duplicate topic names and return concise names with optional confidence values.
+- Expose `POST /compare-topics` for stored VIDEO and PDF topic identifiers and names.
+- Lazily load `sentence-transformers/all-MiniLM-L6-v2`, compute cosine similarities locally, and return one best match for every PDF topic.
 
-OCR, embeddings, semantic comparison, matching, coverage scoring, and reporting are **NOT IMPLEMENTED**.
+OCR, Phase 7 dashboards, charts, and broader reporting are **NOT IMPLEMENTED**. FastAPI does not access PostgreSQL or Prisma.
 
 ## Database role
 
-PostgreSQL is the relational system of record for each video-and-PDF analysis, its future extracted topics, and future topic-match results. The hot-reload-safe Prisma singleton uses `PrismaNeon` with the pooled `DATABASE_URL` for application runtime queries. Prisma CLI, schema, and migration operations use the direct `DIRECT_URL` configured on the datasource. Neon can wake an idle endpoint through the serverless runtime connection, so development does not require a manual wake-up step. A bounded `P1001`-only retry remains at the existing Analysis database boundaries as a defense against transient first-connection failures.
+PostgreSQL is the relational system of record for each video-and-PDF analysis, its extracted topics, best-match results, and overall similarity score. The hot-reload-safe Prisma singleton uses `PrismaNeon` with the pooled `DATABASE_URL` for application runtime queries. Prisma CLI, schema, and migration operations use the direct `DIRECT_URL` configured on the datasource. Neon can wake an idle endpoint through the serverless runtime connection, so development does not require a manual wake-up step. A bounded `P1001`-only retry remains at the existing Analysis database boundaries as a defense against transient first-connection failures.
 
 Phase 1 defines exactly three application models: `Analysis`, `Topic`, and `TopicMatch`. The schema stores file metadata and paths, processing status, nullable future-extraction results, topic sources, and future semantic matches. It does not perform any processing.
 
@@ -64,6 +70,8 @@ Phase 3 also reuses the existing schema. During transcription, status changes fr
 Phase 4 requires no schema change. During PDF extraction, status remains `EXTRACTING_PDF`; on success, cleaned text is stored in `Analysis.pdfText` and status advances to `EXTRACTING_TOPICS`. On failure, status becomes `FAILED` while the transcript and original files remain intact.
 
 Phase 5 also requires no schema change. FastAPI extracts transcript and PDF topics independently. After both calls succeed, a single Prisma transaction changes status from `EXTRACTING_TOPICS` to `COMPARING`, deletes only existing `Topic` rows for that analysis, and inserts the replacement `VIDEO` and `PDF` rows. Provider failure changes status to `FAILED` without modifying source text or committing a partial topic set. No `TopicMatch` row or similarity score is created.
+
+Phase 6 makes `TopicMatch.videoTopicId` nullable so `MISSING` PDF topics can be stored without fake VIDEO topics. For every PDF topic, one `TopicMatch` records its best VIDEO topic and cosine score, or a null VIDEO reference when the score is below `0.35`. A single transaction replaces prior matches, persists `average(best per-PDF similarity) * 100` in `Analysis.overallSimilarityScore`, and advances `COMPARING` to `COMPLETED`. Any failed comparison changes status to `FAILED` while preserving extracted topics for retry.
 
 ## Local upload storage
 
@@ -89,9 +97,15 @@ Next.js loads both source texts from the selected `Analysis`; browsers submit on
 
 FastAPI isolates the Gemini Developer API behind a small provider protocol and uses the official Google Gen AI Python SDK to request a Pydantic-backed structured JSON response. The configured default is the free-tier `gemini-3.5-flash-lite`, and provider responses are never persisted until both source calls succeed. Long inputs are chunked deterministically, and normalized duplicate names are merged without embeddings. Next.js performs the final replace-and-transition operation in one transaction.
 
+## Topic comparison boundary
+
+Browser requests identify only an analysis ID. Next.js loads the stored VIDEO and PDF topics, then sends their stable IDs and names to FastAPI. FastAPI uses the configurable local `sentence-transformers/all-MiniLM-L6-v2` model and never calls Gemini, Prisma, or PostgreSQL for comparison.
+
+The PDF is the reference source: every PDF topic receives exactly one result containing its highest cosine similarity against the VIDEO set. Scores are clamped to `0..1` and classified with centralized thresholds: `STRONG >= 0.75`, `PARTIAL >= 0.55`, `WEAK >= 0.35`, and `MISSING < 0.35`. Missing results retain their actual score but use a null VIDEO relation. Next.js validates IDs, cardinality, scores, and classifications before atomically persisting results.
+
 ## Planned future data flow
 
-The flow through topic extraction is implemented. Everything after it remains architectural direction and is **NOT IMPLEMENTED**:
+The flow through semantic comparison is implemented. Coverage reporting after it remains architectural direction and is **NOT IMPLEMENTED**:
 
 ```text
 Lecture Video
@@ -107,4 +121,4 @@ Topic Analysis
 PDF Processing
 ```
 
-The web application accepts and records the video/PDF input, transcribes the lecture, extracts readable PDF text, and stores separate VIDEO/PDF topics. Phase 6 will add semantic comparison. Later phases will add coverage scoring and reporting, while PostgreSQL stores durable metadata and results.
+The web application accepts and records the video/PDF input, transcribes the lecture, extracts readable PDF text, stores separate VIDEO/PDF topics, and persists Phase 6 best-match similarities. The Coverage Engine and Report stages shown after semantic comparison are **NOT IMPLEMENTED** and belong to later phases.
