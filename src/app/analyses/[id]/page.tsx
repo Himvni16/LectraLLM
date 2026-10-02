@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 
 import { TranscriptionPanel } from "@/components/transcription-panel";
 import { prisma } from "@/lib/prisma";
+import { withPrismaRetry } from "@/lib/prisma-retry";
 
 export const metadata: Metadata = {
   title: "Lecture Analysis | LectraLLM",
-  description: "View and transcribe an uploaded lecture.",
+  description: "View the lecture transcript and extracted PDF text.",
 };
 
 export const dynamic = "force-dynamic";
@@ -18,16 +19,19 @@ interface AnalysisPageProps {
 
 export default async function AnalysisPage({ params }: AnalysisPageProps) {
   const { id } = await params;
-  const analysis = await prisma.analysis.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      videoFileName: true,
-      pdfFileName: true,
-      status: true,
-      transcriptText: true,
-    },
-  });
+  const analysis = await withPrismaRetry("analysis.loadPage", () =>
+    prisma.analysis.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        videoFileName: true,
+        pdfFileName: true,
+        status: true,
+        transcriptText: true,
+        pdfText: true,
+      },
+    }),
+  );
 
   if (!analysis) {
     notFound();
@@ -46,11 +50,11 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
           Analysis
         </p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-          Lecture transcription
+          Lecture processing
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
-          Transcribe the uploaded lecture locally and review the stored text.
-          PDF processing begins in Phase 4.
+          Review the lecture transcript and extract readable text from its
+          corresponding PDF.
         </p>
         <TranscriptionPanel
           initialAnalysis={{ ...analysis, status: analysis.status.toString() }}

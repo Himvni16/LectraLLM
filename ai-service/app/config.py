@@ -32,6 +32,11 @@ class Settings(BaseSettings):
             "AI_TRANSCRIPTION_MAX_SIZE_MB",
         ),
     )
+    pdf_max_size_mb: int = Field(
+        default=25,
+        gt=0,
+        validation_alias=AliasChoices("PDF_MAX_SIZE_MB", "AI_PDF_MAX_SIZE_MB"),
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -46,6 +51,10 @@ class Settings(BaseSettings):
     @property
     def transcription_max_size_bytes(self) -> int:
         return self.transcription_max_size_mb * 1024 * 1024
+
+    @property
+    def pdf_max_size_bytes(self) -> int:
+        return self.pdf_max_size_mb * 1024 * 1024
 
 
 @lru_cache

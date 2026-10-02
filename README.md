@@ -4,15 +4,15 @@ LectraLLM is an AI-powered lecture content comparison tool that analyzes a lectu
 
 ## Current phase
 
-**Phase 3 — Video Transcription is complete.** The repository includes the Phase 0 foundation, the Phase 1 minimal relational schema, the Phase 2 upload workflow, and local lecture transcription through the FastAPI AI service.
+**Phase 4 — PDF Text Extraction is complete.** The repository includes the Phase 0 foundation, the Phase 1 minimal relational schema, the Phase 2 upload workflow, local lecture transcription, and text-based PDF extraction through the FastAPI AI service.
 
-PDF extraction, topic extraction, semantic comparison, percentages, graphs, and final analysis results are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
+Topic extraction, semantic comparison, percentages, graphs, and final analysis results are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
 
 ## Architecture overview
 
 - **Next.js + React + TypeScript + Tailwind CSS:** primary web application at the repository root.
-- **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, and future topic-match results.
-- **FastAPI + Python:** isolated service under `ai-service/` that performs local faster-whisper transcription and will later own document and AI processing.
+- **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, and future topic-match results. Runtime queries use Prisma's Neon serverless adapter.
+- **FastAPI + Python:** isolated service under `ai-service/` that performs local faster-whisper transcription and PyMuPDF text extraction.
 
 See [docs/architecture.md](docs/architecture.md) for responsibilities and the planned future data flow.
 
@@ -43,11 +43,12 @@ The web app reads `.env.local`, which is intentionally ignored by Git.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | Yes | PostgreSQL connection URL used by Prisma |
+| `DATABASE_URL` | Yes | Pooled PostgreSQL URL used by application/runtime Prisma queries |
+| `DIRECT_URL` | Yes for Prisma CLI | Direct PostgreSQL URL used by migrations and administrative commands |
 | `AI_SERVICE_URL` | Yes | Base URL for the FastAPI service, normally `http://127.0.0.1:8000` |
 | `VIDEO_MAX_SIZE_MB` | No | Lecture video limit in MiB; defaults to `250` |
 | `PDF_MAX_SIZE_MB` | No | Lecture PDF limit in MiB; defaults to `25` |
-| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Web-to-AI transcription timeout; defaults to `1800` seconds |
+| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Web-to-AI processing timeout currently shared by transcription and PDF extraction; defaults to `1800` seconds |
 
 Copy `.env.example` and adjust credentials. Required server values are validated when the Next.js server starts and produce an actionable error when absent.
 
@@ -55,13 +56,19 @@ The AI service optionally reads `ai-service/.env`. Its `AI_CORS_ORIGINS` value i
 
 ## Database setup
 
-1. Start PostgreSQL locally.
-2. Create an empty database named `lectrallm`.
-3. Set `DATABASE_URL` in `.env.local` to your real local connection string.
+1. Provision a PostgreSQL database, locally or through Neon.
+2. Set `DATABASE_URL` in `.env.local` to the pooled runtime URL. Neon pooled hostnames normally include `-pooler`. The singleton application client passes this URL to `PrismaNeon`, which connects through Neon's serverless driver rather than Prisma's default TCP query-engine transport.
+3. Set `DIRECT_URL` to the corresponding direct, non-pooler URL. Prisma CLI, schema validation, and migration operations continue to use this direct connection through the Prisma datasource configuration.
 4. Apply the Phase 1 migration with `npx prisma migrate dev`.
 5. Run `npm run prisma:generate`.
 
 The migration creates only `Analysis`, `Topic`, and `TopicMatch`, plus their supporting enums and indexes. For optional development sample data, run `npm run prisma:seed` after applying the migration.
+
+### Neon idle wake-up behavior
+
+Neon may auto-suspend an idle compute endpoint. Runtime Prisma queries use the Neon serverless driver adapter, so LectraLLM can connect to and wake the endpoint automatically; no manual Neon wake-up step is required. The first request after an idle period can still take slightly longer or initially return Prisma `P1001` while the endpoint becomes ready.
+
+LectraLLM retains a defensive retry around application database boundaries, including Analysis creation, loading, and transcription/PDF-extraction state updates. It retries only Prisma `P1001`, including `P1001` errors mapped from adapter connection failures. The policy is bounded to three total attempts with a 1.5-second delay between attempts. Other Prisma errors and application validation errors are not retried. Retry logs contain only the operation name, error code, and attempt metadata; database URLs and credentials are never returned to the browser.
 
 ## Upload workflow
 
@@ -107,6 +114,7 @@ The AI service supports these optional values in `ai-service/.env`:
 | `WHISPER_DEVICE` | `cpu` | CTranslate2 execution device |
 | `WHISPER_COMPUTE_TYPE` | `int8` | CTranslate2 compute type |
 | `TRANSCRIPTION_MAX_SIZE_MB` | `250` | Maximum media size accepted by `/transcribe` |
+| `PDF_MAX_SIZE_MB` | `25` | Maximum PDF size accepted by `/extract-pdf`; keep aligned with the web value |
 
 The model is initialized lazily on the first real transcription request. When a model name such as `base` is used, faster-whisper downloads its model files to the standard Hugging Face cache on first use. CPU with `int8` is the development default; no GPU is required.
 
@@ -123,6 +131,18 @@ UPLOADED → TRANSCRIBING → EXTRACTING_PDF
 Next.js resolves only the stored video attached to the selected `Analysis`, uploads its bytes to FastAPI `POST /transcribe`, and stores the returned full text in `Analysis.transcriptText`. FastAPI uses a temporary media file and removes it after success or failure. The original uploaded video remains unchanged.
 
 If transcription fails, the analysis becomes `FAILED` and can be retried from the analysis page. Browser responses do not include internal storage or temporary paths.
+
+## PDF text extraction workflow
+
+After transcription succeeds, the analysis page offers **Extract PDF text** and runs:
+
+```text
+EXTRACTING_PDF → EXTRACTING_TOPICS
+```
+
+Next.js resolves only the stored PDF attached to the selected `Analysis`, verifies that its path remains under `storage/pdfs/`, and uploads its bytes to FastAPI `POST /extract-pdf`. FastAPI streams the upload to a temporary file, uses PyMuPDF to extract text page-by-page, applies conservative whitespace cleanup, and removes the temporary file in every outcome. The final text is stored in `Analysis.pdfText`; `Analysis.transcriptText` and both original uploads remain unchanged.
+
+Phase 4 supports text-based PDFs only. Scanned or image-only PDFs return `No extractable text found in PDF.` OCR is intentionally not installed or attempted. Failed extraction moves the analysis to `FAILED` and can be retried when a completed transcript is present.
 
 ## Run both services
 
@@ -176,7 +196,7 @@ python -c "from app.main import app; print(app.title)"
 
 ## Planned future phases
 
-- **Phase 4:** extract text from the corresponding PDF.
-- Later phases: topic extraction, semantic comparison, topic-wise coverage percentages, graphs, and the final analysis interface.
+- **Phase 5:** extract topics and subtopics from the transcript and PDF text.
+- Later phases: semantic comparison, topic-wise coverage percentages, graphs, and the final analysis interface.
 
-None of those Phase 4+ processing or analysis capabilities is implemented in Phase 3.
+None of those Phase 5+ processing or analysis capabilities is implemented in Phase 4.
