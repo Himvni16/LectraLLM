@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { AnalysisDashboard } from "@/components/analysis-dashboard";
+import type { DashboardMatch } from "@/lib/analysis-dashboard";
 import type { PdfExtractionSuccessResponse } from "@/lib/pdf-extraction/types";
 import type { TopicComparisonSuccessResponse } from "@/lib/topic-comparison/types";
 import type { TopicExtractionSuccessResponse } from "@/lib/topic-extraction/types";
@@ -23,17 +25,7 @@ interface AnalysisView {
   pdfText: string | null;
   overallSimilarityScore: number | null;
   topics: AnalysisTopicView[];
-  comparisonMatches: AnalysisComparisonView[];
-}
-
-interface AnalysisComparisonView {
-  id?: string;
-  pdfTopicId: string;
-  pdfTopicName: string;
-  videoTopicId: string | null;
-  videoTopicName: string | null;
-  similarityScore: number;
-  matchType: string;
+  comparisonMatches: DashboardMatch[];
 }
 
 interface TranscriptionPanelProps {
@@ -385,24 +377,33 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
       </aside>
 
       <div className="space-y-8">
-        <TextPanel
-          emptyMessage={
-            isTranscribing
-              ? "The local AI service is transcribing this lecture. Longer videos can take several minutes on CPU."
-              : "No transcript has been generated yet."
-          }
-          label="Lecture transcript"
-          text={analysis.transcriptText}
-        />
-        <TextPanel
-          emptyMessage={
-            isExtractingPdf
-              ? "The local AI service is extracting readable text from the PDF."
-              : "No PDF text has been extracted yet."
-          }
-          label="Extracted PDF text"
-          text={analysis.pdfText}
-        />
+        {analysis.status === "COMPLETED" ? (
+          <AnalysisDashboard
+            matches={analysis.comparisonMatches}
+            overallSimilarityScore={analysis.overallSimilarityScore}
+          />
+        ) : (
+          <>
+            <TextPanel
+              emptyMessage={
+                isTranscribing
+                  ? "The local AI service is transcribing this lecture. Longer videos can take several minutes on CPU."
+                  : "No transcript has been generated yet."
+              }
+              label="Lecture transcript"
+              text={analysis.transcriptText}
+            />
+            <TextPanel
+              emptyMessage={
+                isExtractingPdf
+                  ? "The local AI service is extracting readable text from the PDF."
+                  : "No PDF text has been extracted yet."
+              }
+              label="Extracted PDF text"
+              text={analysis.pdfText}
+            />
+          </>
+        )}
         <div className="grid gap-8 xl:grid-cols-2">
           <TopicPanel
             emptyMessage={
@@ -424,69 +425,26 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
           />
         </div>
         {analysis.status === "COMPLETED" ? (
-          <ComparisonPanel
-            matches={analysis.comparisonMatches}
-            overallSimilarityScore={analysis.overallSimilarityScore}
-          />
+          <details className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <summary className="cursor-pointer text-lg font-semibold text-slate-950">
+              Source text
+            </summary>
+            <div className="mt-6 space-y-8">
+              <TextPanel
+                emptyMessage="No transcript has been generated yet."
+                label="Lecture transcript"
+                text={analysis.transcriptText}
+              />
+              <TextPanel
+                emptyMessage="No PDF text has been extracted yet."
+                label="Extracted PDF text"
+                text={analysis.pdfText}
+              />
+            </div>
+          </details>
         ) : null}
       </div>
     </div>
-  );
-}
-
-function ComparisonPanel({
-  matches,
-  overallSimilarityScore,
-}: {
-  matches: AnalysisComparisonView[];
-  overallSimilarityScore: number | null;
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-      <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
-        PDF coverage comparison
-      </p>
-      <p className="mt-4 text-2xl font-semibold text-slate-950">
-        Overall similarity: {overallSimilarityScore?.toFixed(2) ?? "0.00"}%
-      </p>
-      <p className="mt-2 text-sm leading-6 text-slate-600">
-        Each PDF topic is paired with its closest lecture topic. Missing topics
-        have no lecture match.
-      </p>
-
-      <ul className="mt-6 divide-y divide-slate-200 border-y border-slate-200">
-        {matches.map((match) => (
-          <li className="py-5" key={match.id ?? match.pdfTopicId}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="font-semibold text-slate-950">
-                  {match.pdfTopicName}
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {match.videoTopicName
-                    ? `Best lecture match: ${match.videoTopicName}`
-                    : "Missing from the lecture"}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 sm:justify-end">
-                <span className="text-sm font-medium text-slate-700">
-                  {(match.similarityScore * 100).toFixed(1)}%
-                </span>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    match.matchType === "MISSING"
-                      ? "bg-red-100 text-red-800"
-                      : "bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  {match.matchType}
-                </span>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 

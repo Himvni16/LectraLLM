@@ -1,6 +1,6 @@
 # LectraLLM architecture
 
-> Phase 6 status: local video transcription, text-based PDF extraction, separate VIDEO/PDF topic extraction, and PDF-directed semantic topic comparison are implemented. Phase 7 dashboards, charts, and broader reporting remain **NOT IMPLEMENTED**.
+> Phase 7 status: local video transcription, text-based PDF extraction, separate VIDEO/PDF topic extraction, PDF-directed semantic comparison, and a database-backed analysis dashboard are implemented. Phase 8 deployment work remains **NOT IMPLEMENTED**.
 
 ## High-level architecture
 
@@ -14,7 +14,7 @@ Keeping the future AI pipeline outside the web process allows its Python depende
 
 ## Next.js responsibilities
 
-Implemented through Phase 6:
+Implemented through Phase 7:
 
 - Render the minimal LectraLLM application shell.
 - Validate required server-side environment configuration.
@@ -32,13 +32,15 @@ Implemented through Phase 6:
 - Send only stored topic IDs and names to the internal comparison endpoint.
 - Validate one best-match result for every PDF topic.
 - Atomically replace `TopicMatch` rows, persist the overall similarity score, and advance the analysis to `COMPLETED`.
-- Display the simple Phase 6 comparison result without charts.
+- Derive dashboard-only counts and coverage from stored Phase 6 results.
+- Display summary metrics, one match-distribution chart, topic progress bars, missing topics, and detailed comparisons for `COMPLETED` analyses.
+- Preserve lecture/PDF topics and collapsible access to both source texts.
 
-Phase 7 analytics, graphs, and dashboard presentation are **NOT IMPLEMENTED**. LectraLLM has no LMS, authentication, user, course, role, or syllabus-management scope.
+Phase 8 deployment work is **NOT IMPLEMENTED**. LectraLLM has no LMS, authentication, user, course, role, syllabus-management, student-account, notification, or administration scope.
 
 ## FastAPI responsibilities
 
-Implemented through Phase 6:
+Implemented through Phase 6; Phase 7 adds no FastAPI behavior:
 
 - Expose `GET /health`.
 - Centralize service configuration.
@@ -55,7 +57,7 @@ Implemented through Phase 6:
 - Expose `POST /compare-topics` for stored VIDEO and PDF topic identifiers and names.
 - Lazily load `sentence-transformers/all-MiniLM-L6-v2`, compute cosine similarities locally, and return one best match for every PDF topic.
 
-OCR, Phase 7 dashboards, charts, and broader reporting are **NOT IMPLEMENTED**. FastAPI does not access PostgreSQL or Prisma.
+OCR and unrelated AI workflows are **NOT IMPLEMENTED**. FastAPI does not access PostgreSQL or Prisma, and Phase 7 never calls it for dashboard rendering.
 
 ## Database role
 
@@ -72,6 +74,8 @@ Phase 4 requires no schema change. During PDF extraction, status remains `EXTRAC
 Phase 5 also requires no schema change. FastAPI extracts transcript and PDF topics independently. After both calls succeed, a single Prisma transaction changes status from `EXTRACTING_TOPICS` to `COMPARING`, deletes only existing `Topic` rows for that analysis, and inserts the replacement `VIDEO` and `PDF` rows. Provider failure changes status to `FAILED` without modifying source text or committing a partial topic set. No `TopicMatch` row or similarity score is created.
 
 Phase 6 makes `TopicMatch.videoTopicId` nullable so `MISSING` PDF topics can be stored without fake VIDEO topics. For every PDF topic, one `TopicMatch` records its best VIDEO topic and cosine score, or a null VIDEO reference when the score is below `0.35`. A single transaction replaces prior matches, persists `average(best per-PDF similarity) * 100` in `Analysis.overallSimilarityScore`, and advances `COMPARING` to `COMPLETED`. Any failed comparison changes status to `FAILED` while preserving extracted topics for retry.
+
+Phase 7 requires no schema change. The analysis page loads the already-stored score, topics, and best matches. A pure TypeScript helper derives match counts, topic rows, and coverage percentage without persisting dashboard-only values.
 
 ## Local upload storage
 
@@ -103,9 +107,13 @@ Browser requests identify only an analysis ID. Next.js loads the stored VIDEO an
 
 The PDF is the reference source: every PDF topic receives exactly one result containing its highest cosine similarity against the VIDEO set. Scores are clamped to `0..1` and classified with centralized thresholds: `STRONG >= 0.75`, `PARTIAL >= 0.55`, `WEAK >= 0.35`, and `MISSING < 0.35`. Missing results retain their actual score but use a null VIDEO relation. Next.js validates IDs, cardinality, scores, and classifications before atomically persisting results.
 
+## Dashboard boundary
+
+The dashboard exists only in the Next.js presentation layer and renders only when an analysis is `COMPLETED`. Its pure helper calculates `coverage = non-MISSING PDF topics / total PDF topics * 100`, counts every `MatchType`, and maps stored similarities to display percentages while preserving database order. Recharts renders one match-distribution bar chart; topic-level similarity uses accessible progress bars. No dashboard value is accepted from the browser or written back to PostgreSQL.
+
 ## Planned future data flow
 
-The flow through semantic comparison is implemented. Coverage reporting after it remains architectural direction and is **NOT IMPLEMENTED**:
+The flow through the Phase 7 report is implemented:
 
 ```text
 Lecture Video
@@ -121,4 +129,4 @@ Topic Analysis
 PDF Processing
 ```
 
-The web application accepts and records the video/PDF input, transcribes the lecture, extracts readable PDF text, stores separate VIDEO/PDF topics, and persists Phase 6 best-match similarities. The Coverage Engine and Report stages shown after semantic comparison are **NOT IMPLEMENTED** and belong to later phases.
+The web application accepts and records the video/PDF input, transcribes the lecture, extracts readable PDF text, stores separate VIDEO/PDF topics, persists Phase 6 best-match similarities, and derives the Phase 7 report from those results. Phase 8 deployment work remains **NOT IMPLEMENTED**.

@@ -98,7 +98,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
               videoTopicId: match.videoTopic?.id ?? null,
               videoTopicName: match.videoTopic?.name ?? null,
               similarityScore: match.similarityScore.toNumber(),
-              matchType: match.matchType.toString(),
+              matchType: match.matchType,
             })),
           }}
         />

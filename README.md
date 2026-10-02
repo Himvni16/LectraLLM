@@ -4,13 +4,13 @@ LectraLLM is an AI-powered lecture content comparison tool that analyzes a lectu
 
 ## Current phase
 
-**Phase 6 — Topic Comparison is complete.** The repository includes the Phase 0 foundation, the Phase 1 relational schema, the Phase 2 upload workflow, local lecture transcription, text-based PDF extraction, separate LLM-based topic extraction, and local embedding-based comparison of each PDF topic against the lecture topics.
+**Phase 7 — Analysis Dashboard is complete.** The repository includes the Phase 0 foundation, the relational and upload workflows, local lecture transcription, text-based PDF extraction, separate LLM-based topic extraction, local embedding-based comparison, and a completed-analysis report derived from stored comparison results.
 
-Dashboard charts, broader coverage analytics, and Phase 7 reporting are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
+Phase 8 deployment work is **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, syllabus management, student accounts, notifications, or administration features.
 
 ## Architecture overview
 
-- **Next.js + React + TypeScript + Tailwind CSS:** primary web application at the repository root.
+- **Next.js + React + TypeScript + Tailwind CSS:** primary web application and Recharts-backed analysis dashboard at the repository root.
 - **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, best-match results, and overall similarity. Runtime queries use Prisma's Neon serverless adapter.
 - **FastAPI + Python:** isolated service under `ai-service/` that performs local faster-whisper transcription, PyMuPDF text extraction, Gemini-backed structured topic extraction, and local sentence-transformer comparison.
 
@@ -167,6 +167,14 @@ PDF topics are the reference set. For every PDF topic, FastAPI returns only its 
 
 Next.js validates that the response contains exactly one correctly classified result per PDF topic. A single Prisma transaction replaces old `TopicMatch` rows, stores the new matches, sets `overallSimilarityScore` to `average(per-PDF best similarities) * 100`, and changes status to `COMPLETED`. Failures change the status to `FAILED` and can be retried with the existing topics intact. The Phase 6 migration makes only `TopicMatch.videoTopicId` nullable so missing coverage is represented without fake topics.
 
+## Analysis dashboard
+
+Completed analyses render a dedicated report on `/analyses/<analysis-id>`. The dashboard reads only the existing `Analysis`, `Topic`, and `TopicMatch` values already loaded by the page; it makes no Gemini, embedding, FastAPI, or comparison requests.
+
+The report shows the stored overall similarity, total PDF topic count, individual match-type counts, and a derived coverage percentage: `(STRONG + PARTIAL + WEAK) / total PDF topics * 100`. A single Recharts bar chart presents match distribution, while accessible progress bars show each PDF topic's stored similarity. Missing topics and the detailed PDF-to-lecture match list remain separate and readable. Lecture/PDF topic confidence values remain visible, and the transcript and extracted PDF text remain available in a collapsible source-text section.
+
+All dashboard calculations are presentation-only and are not persisted. Phase 7 adds no database migration and does not recalculate embeddings or similarity.
+
 ## Run both services
 
 Use two PowerShell windows:
@@ -219,6 +227,6 @@ python -c "from app.main import app; print(app.title)"
 
 ## Planned future phases
 
-- **Phase 7 and later:** richer coverage reporting, charts, and the final analytics dashboard.
+- **Phase 8 and later:** deployment and explicitly scoped future production work.
 
-No Phase 7 dashboard or graph functionality is implemented in Phase 6.
+No Phase 8 deployment work is implemented in Phase 7.
