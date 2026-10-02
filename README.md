@@ -4,15 +4,15 @@ LectraLLM is an AI-powered lecture content comparison tool that analyzes a lectu
 
 ## Current phase
 
-**Phase 4 — PDF Text Extraction is complete.** The repository includes the Phase 0 foundation, the Phase 1 minimal relational schema, the Phase 2 upload workflow, local lecture transcription, and text-based PDF extraction through the FastAPI AI service.
+**Phase 5 — Topic Extraction is complete.** The repository includes the Phase 0 foundation, the Phase 1 minimal relational schema, the Phase 2 upload workflow, local lecture transcription, text-based PDF extraction, and separate LLM-based topic extraction for lecture and PDF text.
 
-Topic extraction, semantic comparison, percentages, graphs, and final analysis results are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
+Semantic comparison, embeddings, percentages, graphs, and final analysis results are **not implemented**. LectraLLM is not an LMS and does not include users, courses, roles, or syllabus management.
 
 ## Architecture overview
 
 - **Next.js + React + TypeScript + Tailwind CSS:** primary web application at the repository root.
 - **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, and future topic-match results. Runtime queries use Prisma's Neon serverless adapter.
-- **FastAPI + Python:** isolated service under `ai-service/` that performs local faster-whisper transcription and PyMuPDF text extraction.
+- **FastAPI + Python:** isolated service under `ai-service/` that performs local faster-whisper transcription, PyMuPDF text extraction, and Gemini-backed structured topic extraction.
 
 See [docs/architecture.md](docs/architecture.md) for responsibilities and the planned future data flow.
 
@@ -106,7 +106,7 @@ python -m uvicorn app.main:app --reload --port 8000
 
 The service is available at `http://127.0.0.1:8000`. Verify it at `http://127.0.0.1:8000/health`.
 
-The AI service supports these optional values in `ai-service/.env`:
+The AI service reads these values from `ai-service/.env`:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -115,6 +115,10 @@ The AI service supports these optional values in `ai-service/.env`:
 | `WHISPER_COMPUTE_TYPE` | `int8` | CTranslate2 compute type |
 | `TRANSCRIPTION_MAX_SIZE_MB` | `250` | Maximum media size accepted by `/transcribe` |
 | `PDF_MAX_SIZE_MB` | `25` | Maximum PDF size accepted by `/extract-pdf`; keep aligned with the web value |
+| `TOPIC_PROVIDER` | `gemini` | Topic model provider; Phase 5 uses the Gemini Developer API |
+| `GEMINI_API_KEY` | No default | Required only when running topic extraction; keep this server-side |
+| `GEMINI_TOPIC_MODEL` | `gemini-3.5-flash-lite` | Free-tier structured-output model used for topic extraction |
+| `TOPIC_CHUNK_CHARS` | `12000` | Maximum source characters processed in one model request |
 
 The model is initialized lazily on the first real transcription request. When a model name such as `base` is used, faster-whisper downloads its model files to the standard Hugging Face cache on first use. CPU with `int8` is the development default; no GPU is required.
 
@@ -143,6 +147,16 @@ EXTRACTING_PDF → EXTRACTING_TOPICS
 Next.js resolves only the stored PDF attached to the selected `Analysis`, verifies that its path remains under `storage/pdfs/`, and uploads its bytes to FastAPI `POST /extract-pdf`. FastAPI streams the upload to a temporary file, uses PyMuPDF to extract text page-by-page, applies conservative whitespace cleanup, and removes the temporary file in every outcome. The final text is stored in `Analysis.pdfText`; `Analysis.transcriptText` and both original uploads remain unchanged.
 
 Phase 4 supports text-based PDFs only. Scanned or image-only PDFs return `No extractable text found in PDF.` OCR is intentionally not installed or attempted. Failed extraction moves the analysis to `FAILED` and can be retried when a completed transcript is present.
+
+## Topic extraction workflow
+
+For an analysis at `EXTRACTING_TOPICS`, select **Extract topics** on the analysis page. Next.js sends the transcript and PDF text to FastAPI separately as `VIDEO` and `PDF` sources. FastAPI uses the official Google Gen AI Python SDK with Gemini Structured Outputs and the configured `GEMINI_TOPIC_MODEL`; the API key remains inside the Python service and is never returned to Next.js or the browser. The default `gemini-3.5-flash-lite` model is available on the Gemini Developer API free tier and is intended for low-cost document parsing and simple structured extraction.
+
+Long source text is split deterministically at paragraph and sentence boundaries where practical, without splitting ordinary words. Each chunk is processed independently, then exact normalized duplicates are merged while retaining the highest confidence. The source text is not sent to an embedding service and the two topic sets are not compared.
+
+After both source extractions succeed, one database transaction replaces only the current analysis's previous topics, stores lecture topics as `VIDEO`, stores PDF topics/subtopics as `PDF`, and advances the analysis to `COMPARING`. If either extraction fails, no partial replacement is committed, both source texts are preserved, and status becomes `FAILED` for a safe retry.
+
+The existing `Topic` model is sufficient, so Phase 5 adds no schema migration. `TopicMatch` and `overallSimilarityScore` remain untouched.
 
 ## Run both services
 
@@ -196,7 +210,7 @@ python -c "from app.main import app; print(app.title)"
 
 ## Planned future phases
 
-- **Phase 5:** extract topics and subtopics from the transcript and PDF text.
-- Later phases: semantic comparison, topic-wise coverage percentages, graphs, and the final analysis interface.
+- **Phase 6:** semantically compare the separately extracted VIDEO and PDF topics.
+- Later phases: topic-wise coverage percentages, graphs, and the final analysis interface.
 
-None of those Phase 5+ processing or analysis capabilities is implemented in Phase 4.
+None of those Phase 6+ comparison or reporting capabilities is implemented in Phase 5.

@@ -3,7 +3,15 @@
 import { useState } from "react";
 
 import type { PdfExtractionSuccessResponse } from "@/lib/pdf-extraction/types";
+import type { TopicExtractionSuccessResponse } from "@/lib/topic-extraction/types";
 import type { TranscriptionSuccessResponse } from "@/lib/transcription/types";
+
+interface AnalysisTopicView {
+  id?: string;
+  name: string;
+  source: string;
+  confidence: number | null;
+}
 
 interface AnalysisView {
   id: string;
@@ -12,6 +20,7 @@ interface AnalysisView {
   status: string;
   transcriptText: string | null;
   pdfText: string | null;
+  topics: AnalysisTopicView[];
 }
 
 interface TranscriptionPanelProps {
@@ -30,7 +39,7 @@ const STATUS_LABELS: Readonly<Record<string, string>> = {
   TRANSCRIBING: "Transcribing",
   EXTRACTING_PDF: "Ready for PDF extraction",
   EXTRACTING_TOPICS: "Ready for topic extraction",
-  COMPARING: "Comparing",
+  COMPARING: "Ready for comparison",
   COMPLETED: "Completed",
   FAILED: "Processing failed",
 };
@@ -39,13 +48,21 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
   const [analysis, setAnalysis] = useState(initialAnalysis);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isExtractingPdf, setIsExtractingPdf] = useState(false);
+  const [isExtractingTopics, setIsExtractingTopics] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canTranscribe =
     analysis.status === "UPLOADED" ||
     (analysis.status === "FAILED" && !analysis.transcriptText);
   const canExtractPdf =
     analysis.status === "EXTRACTING_PDF" ||
-    (analysis.status === "FAILED" && Boolean(analysis.transcriptText));
+    (analysis.status === "FAILED" &&
+      Boolean(analysis.transcriptText) &&
+      !analysis.pdfText);
+  const canExtractTopics =
+    analysis.status === "EXTRACTING_TOPICS" ||
+    (analysis.status === "FAILED" &&
+      Boolean(analysis.transcriptText) &&
+      Boolean(analysis.pdfText));
 
   async function handleTranscription() {
     const previousStatus = analysis.status;
@@ -131,6 +148,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
         ...current,
         status: result.status,
         pdfText: result.text,
+        topics: [],
       }));
     } catch (extractionError) {
       const nextStatus =
@@ -146,6 +164,64 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
       );
     } finally {
       setIsExtractingPdf(false);
+    }
+  }
+
+  async function handleTopicExtraction() {
+    const previousStatus = analysis.status;
+    setError(null);
+    setIsExtractingTopics(true);
+    setAnalysis((current) => ({ ...current, status: "EXTRACTING_TOPICS" }));
+
+    try {
+      const response = await fetch(
+        `/api/analyses/${encodeURIComponent(analysis.id)}/extract-topics`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as
+        | TopicExtractionSuccessResponse
+        | ErrorResponse;
+
+      if (!response.ok) {
+        const message =
+          "error" in payload ? payload.error?.message : undefined;
+        const failure = new Error(message ?? "Topics could not be extracted.");
+        failure.name =
+          "error" in payload
+            ? (payload.error?.code ?? "TOPIC_EXTRACTION_FAILED")
+            : "TOPIC_EXTRACTION_FAILED";
+        throw failure;
+      }
+
+      const result = payload as TopicExtractionSuccessResponse;
+      setAnalysis((current) => ({
+        ...current,
+        status: result.status,
+        topics: [
+          ...result.videoTopics.map((topic) => ({
+            ...topic,
+            source: "VIDEO",
+          })),
+          ...result.pdfTopics.map((topic) => ({
+            ...topic,
+            source: "PDF",
+          })),
+        ],
+      }));
+    } catch (extractionError) {
+      const nextStatus =
+        extractionError instanceof Error &&
+        extractionError.name === "TOPIC_EXTRACTION_NOT_ALLOWED"
+          ? previousStatus
+          : "FAILED";
+      setAnalysis((current) => ({ ...current, status: nextStatus }));
+      setError(
+        extractionError instanceof Error
+          ? extractionError.message
+          : "Topics could not be extracted.",
+      );
+    } finally {
+      setIsExtractingTopics(false);
     }
   }
 
@@ -192,6 +268,21 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
           </button>
         ) : null}
 
+        {canExtractTopics ? (
+          <button
+            className="mt-7 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-violet-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:cursor-wait disabled:bg-slate-400"
+            disabled={isExtractingTopics}
+            onClick={handleTopicExtraction}
+            type="button"
+          >
+            {isExtractingTopics
+              ? "Extracting topics…"
+              : analysis.status === "FAILED"
+                ? "Retry topic extraction"
+                : "Extract topics"}
+          </button>
+        ) : null}
+
         {error ? (
           <p
             className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
@@ -221,8 +312,74 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
           label="Extracted PDF text"
           text={analysis.pdfText}
         />
+        <div className="grid gap-8 xl:grid-cols-2">
+          <TopicPanel
+            emptyMessage={
+              isExtractingTopics
+                ? "Lecture topics are being extracted."
+                : "No lecture topics have been extracted yet."
+            }
+            label="Lecture topics"
+            topics={analysis.topics.filter((topic) => topic.source === "VIDEO")}
+          />
+          <TopicPanel
+            emptyMessage={
+              isExtractingTopics
+                ? "PDF topics and subtopics are being extracted."
+                : "No PDF topics have been extracted yet."
+            }
+            label="PDF topics and subtopics"
+            topics={analysis.topics.filter((topic) => topic.source === "PDF")}
+          />
+        </div>
       </div>
     </div>
+  );
+}
+
+function TopicPanel({
+  emptyMessage,
+  label,
+  topics,
+}: {
+  emptyMessage: string;
+  label: string;
+  topics: AnalysisTopicView[];
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
+        {label}
+      </p>
+      {topics.length > 0 ? (
+        <ul className="mt-5 space-y-3">
+          {topics.map((topic, index) => (
+            <li
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+              key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-medium text-slate-900">{topic.name}</p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    {topic.source}
+                  </p>
+                </div>
+                {topic.confidence !== null ? (
+                  <span className="shrink-0 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                    {Math.round(topic.confidence * 100)}%
+                  </span>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="mt-5 rounded-xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
+          {emptyMessage}
+        </div>
+      )}
+    </section>
   );
 }
 

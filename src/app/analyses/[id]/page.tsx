@@ -8,7 +8,7 @@ import { withPrismaRetry } from "@/lib/prisma-retry";
 
 export const metadata: Metadata = {
   title: "Lecture Analysis | LectraLLM",
-  description: "View the lecture transcript and extracted PDF text.",
+  description: "View extracted lecture and PDF topics.",
 };
 
 export const dynamic = "force-dynamic";
@@ -29,6 +29,15 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
         status: true,
         transcriptText: true,
         pdfText: true,
+        topics: {
+          select: {
+            id: true,
+            name: true,
+            source: true,
+            confidenceScore: true,
+          },
+          orderBy: [{ source: "asc" }, { createdAt: "asc" }],
+        },
       },
     }),
   );
@@ -53,11 +62,19 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
           Lecture processing
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
-          Review the lecture transcript and extract readable text from its
-          corresponding PDF.
+          Review the source text and extract separate lecture and PDF topics.
         </p>
         <TranscriptionPanel
-          initialAnalysis={{ ...analysis, status: analysis.status.toString() }}
+          initialAnalysis={{
+            ...analysis,
+            status: analysis.status.toString(),
+            topics: analysis.topics.map((topic) => ({
+              id: topic.id,
+              name: topic.name,
+              source: topic.source.toString(),
+              confidence: topic.confidenceScore?.toNumber() ?? null,
+            })),
+          }}
         />
       </section>
     </main>

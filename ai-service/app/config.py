@@ -1,6 +1,8 @@
 from functools import lru_cache
 
-from pydantic import AliasChoices, Field
+from typing import Literal
+
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,6 +38,28 @@ class Settings(BaseSettings):
         default=25,
         gt=0,
         validation_alias=AliasChoices("PDF_MAX_SIZE_MB", "AI_PDF_MAX_SIZE_MB"),
+    )
+    topic_provider: Literal["gemini"] = Field(
+        default="gemini",
+        validation_alias=AliasChoices("TOPIC_PROVIDER", "AI_TOPIC_PROVIDER"),
+    )
+    gemini_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GEMINI_API_KEY", "AI_GEMINI_API_KEY"),
+    )
+    gemini_topic_model: str = Field(
+        default="gemini-3.5-flash-lite",
+        min_length=1,
+        validation_alias=AliasChoices(
+            "GEMINI_TOPIC_MODEL",
+            "AI_GEMINI_TOPIC_MODEL",
+        ),
+    )
+    topic_chunk_chars: int = Field(
+        default=12_000,
+        ge=1_000,
+        le=100_000,
+        validation_alias=AliasChoices("TOPIC_CHUNK_CHARS", "AI_TOPIC_CHUNK_CHARS"),
     )
 
     model_config = SettingsConfigDict(
