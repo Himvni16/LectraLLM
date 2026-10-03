@@ -120,8 +120,60 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
   const failed = analysis.status === "FAILED";
   const completed = analysis.status === "COMPLETED";
 
+  if (completed) {
+    return (
+      <div className="mt-8 space-y-8">
+        <header>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-700">
+            Completed analysis
+          </p>
+          <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+                Lecture Analysis
+              </h1>
+              <p className="mt-4 break-words text-base font-medium leading-7 text-slate-700 sm:text-lg">
+                {analysis.videoFileName}
+                <span className="mx-2 font-normal text-slate-400">vs</span>
+                {analysis.pdfFileName}
+              </p>
+            </div>
+            <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800">
+              <span aria-hidden="true" className="size-2 rounded-full bg-emerald-600" />
+              Analysis complete
+            </span>
+          </div>
+        </header>
+
+        <AnalysisDashboard
+          extractedTopics={analysis.topics}
+          matches={analysis.comparisonMatches}
+          overallSimilarityScore={analysis.overallSimilarityScore}
+          sourceDetails={{
+            transcriptText: analysis.transcriptText,
+            pdfText: analysis.pdfText,
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-8 grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]">
+    <div className="mt-8">
+      <header>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-700">
+          Analysis
+        </p>
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+          Lecture analysis
+        </h1>
+        <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
+          LectraLLM processes the lecture and PDF automatically, then shows the
+          completed coverage dashboard here.
+        </p>
+      </header>
+
+      <div className="mt-8 grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]">
       <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <dl className="space-y-5 text-sm">
           <AnalysisDetail label="Video" value={analysis.videoFileName} />
@@ -133,30 +185,28 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
           <AnalysisDetail label="Analysis ID" value={analysis.id} />
         </dl>
 
-        {!completed ? (
-          <div className="mt-7 border-t border-slate-200 pt-6">
-            <h2 className="text-lg font-semibold text-slate-950">
-              {failed ? "Analysis paused" : "Analyzing your lecture"}
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              {failed
-                ? GENERIC_FAILURE_MESSAGE
-                : getAnalysisStatusLabel(analysis.status)}
-            </p>
-            <ProgressSteps analysis={analysis} />
+        <div className="mt-7 border-t border-slate-200 pt-6">
+          <h2 className="text-lg font-semibold text-slate-950">
+            {failed ? "Analysis paused" : "Analyzing your lecture"}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            {failed
+              ? GENERIC_FAILURE_MESSAGE
+              : getAnalysisStatusLabel(analysis.status)}
+          </p>
+          <ProgressSteps analysis={analysis} />
 
-            {failed ? (
-              <button
-                className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-wait disabled:bg-slate-400"
-                disabled={isPipelineRequestActive}
-                onClick={() => void startPipeline()}
-                type="button"
-              >
-                {isPipelineRequestActive ? "Retrying analysis…" : "Retry Analysis"}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+          {failed ? (
+            <button
+              className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-wait disabled:bg-slate-400"
+              disabled={isPipelineRequestActive}
+              onClick={() => void startPipeline()}
+              type="button"
+            >
+              {isPipelineRequestActive ? "Retrying analysis…" : "Retry Analysis"}
+            </button>
+          ) : null}
+        </div>
 
         {error && !failed ? (
           <p
@@ -169,27 +219,20 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
       </aside>
 
       <div className="space-y-8">
-        {completed ? (
-          <AnalysisDashboard
-            matches={analysis.comparisonMatches}
-            overallSimilarityScore={analysis.overallSimilarityScore}
-          />
-        ) : (
-          <section className="rounded-2xl border border-blue-100 bg-blue-50 p-6 shadow-sm sm:p-8">
-            <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
-              In progress
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-950">
-              {getAnalysisStatusLabel(analysis.status)}
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              You can leave this page open while LectraLLM works through the
-              remaining steps.
-            </p>
-          </section>
-        )}
+        <section className="rounded-2xl border border-blue-100 bg-blue-50 p-6 shadow-sm sm:p-8">
+          <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
+            In progress
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+            {getAnalysisStatusLabel(analysis.status)}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            You can leave this page open while LectraLLM works through the
+            remaining steps.
+          </p>
+        </section>
 
-        <div className="grid gap-8 xl:grid-cols-2">
+          <div className="grid gap-8 xl:grid-cols-2">
           <TopicPanel
             emptyMessage="Lecture topics will appear after extraction."
             label="Lecture topics"
@@ -201,26 +244,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
             topics={analysis.topics.filter((topic) => topic.source === "PDF")}
           />
         </div>
-
-        {completed ? (
-          <details className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <summary className="cursor-pointer text-lg font-semibold text-slate-950">
-              Source text
-            </summary>
-            <div className="mt-6 space-y-8">
-              <TextPanel
-                emptyMessage="No transcript has been generated yet."
-                label="Lecture transcript"
-                text={analysis.transcriptText}
-              />
-              <TextPanel
-                emptyMessage="No PDF text has been extracted yet."
-                label="Extracted PDF text"
-                text={analysis.pdfText}
-              />
-            </div>
-          </details>
-        ) : null}
+        </div>
       </div>
     </div>
   );
@@ -331,33 +355,6 @@ function TopicPanel({
             </li>
           ))}
         </ul>
-      ) : (
-        <div className="mt-5 rounded-xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
-          {emptyMessage}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function TextPanel({
-  emptyMessage,
-  label,
-  text,
-}: {
-  emptyMessage: string;
-  label: string;
-  text: string | null;
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-      <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
-        {label}
-      </p>
-      {text ? (
-        <p className="mt-5 whitespace-pre-wrap text-base leading-8 text-slate-700">
-          {text}
-        </p>
       ) : (
         <div className="mt-5 rounded-xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
           {emptyMessage}

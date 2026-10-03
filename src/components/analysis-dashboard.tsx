@@ -1,10 +1,12 @@
 "use client";
 
+import { useState, type KeyboardEvent } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -13,21 +15,55 @@ import {
 
 import {
   deriveAnalysisDashboard,
+  type AnalysisDashboardData,
   type DashboardMatch,
   type DashboardMatchType,
   type DashboardTopicRow,
 } from "@/lib/analysis-dashboard";
 
+export interface DashboardExtractedTopic {
+  id?: string;
+  name: string;
+  source: string;
+  confidence: number | null;
+}
+
+export interface DashboardSourceDetails {
+  transcriptText: string | null;
+  pdfText: string | null;
+}
+
+type DashboardTab = "overview" | "topics" | "sources";
+type ExtractedTopicSource = "VIDEO" | "PDF";
+
 interface AnalysisDashboardProps {
   matches: readonly DashboardMatch[];
   overallSimilarityScore: number | null;
+  extractedTopics: readonly DashboardExtractedTopic[];
+  sourceDetails: DashboardSourceDetails;
+  initialTab?: DashboardTab;
+  initialExtractedTopicSource?: ExtractedTopicSource;
 }
 
+const DASHBOARD_TABS: ReadonlyArray<{ id: DashboardTab; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "topics", label: "Topic Analysis" },
+  { id: "sources", label: "Source Details" },
+];
+
+const EXTRACTED_TOPIC_TABS: ReadonlyArray<{
+  id: ExtractedTopicSource;
+  label: string;
+}> = [
+  { id: "VIDEO", label: "Lecture Topics" },
+  { id: "PDF", label: "PDF Topics" },
+];
+
 const BADGE_STYLES: Readonly<Record<DashboardMatchType, string>> = {
-  STRONG: "bg-emerald-100 text-emerald-800",
-  PARTIAL: "bg-blue-100 text-blue-800",
-  WEAK: "bg-amber-100 text-amber-800",
-  MISSING: "bg-red-100 text-red-800",
+  STRONG: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  PARTIAL: "border-blue-200 bg-blue-50 text-blue-800",
+  WEAK: "border-amber-200 bg-amber-50 text-amber-800",
+  MISSING: "border-red-200 bg-red-50 text-red-800",
 };
 
 const PROGRESS_STYLES: Readonly<Record<DashboardMatchType, string>> = {
@@ -41,142 +77,283 @@ function percentage(value: number, fractionDigits = 1): string {
   return `${value.toFixed(fractionDigits)}%`;
 }
 
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return count === 1 ? singular : plural;
+}
+
 export function AnalysisDashboard({
   matches,
   overallSimilarityScore,
+  extractedTopics,
+  sourceDetails,
+  initialTab = "overview",
+  initialExtractedTopicSource = "VIDEO",
 }: AnalysisDashboardProps) {
   const dashboard = deriveAnalysisDashboard(matches, overallSimilarityScore);
-  const distributionLabel = dashboard.distribution
-    .map((item) => `${item.label}: ${item.count}`)
-    .join(", ");
+  const [selectedTab, setSelectedTab] = useState<DashboardTab>(initialTab);
+  const matchSummary = `${dashboard.counts.STRONG} strong • ${dashboard.counts.PARTIAL} partial • ${dashboard.counts.WEAK} weak`;
 
   return (
-    <section aria-labelledby="analysis-dashboard-heading" className="space-y-8">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-700">
-          Completed analysis
-        </p>
-        <h2
-          className="mt-2 text-3xl font-semibold tracking-tight text-slate-950"
-          id="analysis-dashboard-heading"
-        >
-          Analysis dashboard
+    <section aria-label="Analysis results" className="space-y-6">
+      <section aria-labelledby="key-metrics-heading">
+        <h2 className="sr-only" id="key-metrics-heading">
+          Key analysis metrics
         </h2>
-        <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
-          Coverage is measured from the stored best lecture match for every PDF
-          topic. No new analysis is performed on this page.
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          label="Overall similarity"
-          value={percentage(dashboard.overallSimilarityPercentage, 2)}
-        />
-        <Metric
-          label="Coverage"
-          value={percentage(dashboard.coveragePercentage, 2)}
-        />
-        <Metric label="Total PDF topics" value={dashboard.totalPdfTopics} />
-        <Metric label="Strong matches" value={dashboard.counts.STRONG} />
-        <Metric label="Partial matches" value={dashboard.counts.PARTIAL} />
-        <Metric label="Weak matches" value={dashboard.counts.WEAK} />
-        <Metric label="Missing topics" value={dashboard.counts.MISSING} />
-      </div>
-
-      <section
-        aria-labelledby="match-distribution-heading"
-        className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
-      >
-        <h3
-          className="text-xl font-semibold text-slate-950"
-          id="match-distribution-heading"
-        >
-          Match distribution
-        </h3>
-        <p className="mt-2 text-sm text-slate-600">
-          Number of PDF topics in each stored match category.
-        </p>
-        <div
-          aria-label={`Match distribution. ${distributionLabel}`}
-          className="mt-6 h-72 w-full"
-          role="img"
-        >
-          <ResponsiveContainer height="100%" width="100%">
-            <BarChart
-              accessibilityLayer
-              data={dashboard.distribution}
-              margin={{ top: 8, right: 8, bottom: 8, left: -18 }}
-            >
-              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
-              <XAxis dataKey="label" tick={{ fill: "#475569", fontSize: 12 }} />
-              <YAxis
-                allowDecimals={false}
-                tick={{ fill: "#475569", fontSize: 12 }}
-              />
-              <Tooltip cursor={{ fill: "#f8fafc" }} />
-              <Bar dataKey="count" name="PDF topics" radius={[6, 6, 0, 0]}>
-                {dashboard.distribution.map((item) => (
-                  <Cell fill={item.color} key={item.matchType} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric
+            label="Overall Match"
+            value={percentage(dashboard.overallSimilarityPercentage)}
+          />
+          <Metric
+            label="Topic Coverage"
+            value={percentage(dashboard.coveragePercentage, 0)}
+          />
+          <Metric
+            label="Strong Matches"
+            value={`${dashboard.counts.STRONG} / ${dashboard.totalPdfTopics}`}
+          />
+          <Metric label="Missing Topics" value={dashboard.counts.MISSING} />
+        </div>
+        <div className="mt-4 flex flex-col gap-1 px-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <p>{matchSummary}</p>
+          <p>
+            {dashboard.totalPdfTopics} PDF{" "}
+            {pluralize(dashboard.totalPdfTopics, "topic")} analyzed
+          </p>
         </div>
       </section>
 
-      <section
-        aria-labelledby="topic-coverage-heading"
-        className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
-      >
-        <h3
-          className="text-xl font-semibold text-slate-950"
-          id="topic-coverage-heading"
-        >
-          Topic-level coverage
-        </h3>
-        <p className="mt-2 text-sm text-slate-600">
-          Stored similarity for every PDF topic, in PDF topic order.
-        </p>
-        {dashboard.topicRows.length > 0 ? (
-          <ul className="mt-6 space-y-5">
-            {dashboard.topicRows.map((topic) => (
-              <li key={topic.pdfTopicId}>
-                <div className="flex items-center justify-between gap-4 text-sm">
-                  <span className="font-medium text-slate-900">
-                    {topic.pdfTopicName}
-                  </span>
-                  <span className="shrink-0 font-semibold text-slate-700">
-                    {percentage(topic.similarityPercentage)} · {topic.matchType}
-                  </span>
-                </div>
-                <div
-                  aria-label={`${topic.pdfTopicName}: ${percentage(topic.similarityPercentage)} ${topic.matchType.toLowerCase()}`}
-                  className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200"
-                  role="progressbar"
-                  aria-valuemax={100}
-                  aria-valuemin={0}
-                  aria-valuenow={topic.similarityPercentage}
-                >
-                  <div
-                    className={`h-full rounded-full ${PROGRESS_STYLES[topic.matchType]}`}
-                    style={{ width: `${topic.similarityPercentage}%` }}
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-6 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
-            No topic comparison results are available.
-          </p>
-        )}
-      </section>
+      <DashboardTabNavigation
+        selectedTab={selectedTab}
+        onSelect={setSelectedTab}
+      />
 
-      <MissingTopics topics={dashboard.missingTopics} />
-      <DetailedComparisons topics={dashboard.topicRows} />
+      {selectedTab === "overview" ? (
+        <div
+          aria-labelledby="dashboard-tab-overview"
+          id="dashboard-panel-overview"
+          role="tabpanel"
+          tabIndex={0}
+        >
+          <OverviewTab dashboard={dashboard} matchSummary={matchSummary} />
+        </div>
+      ) : null}
+
+      {selectedTab === "topics" ? (
+        <div
+          aria-labelledby="dashboard-tab-topics"
+          className="space-y-8"
+          id="dashboard-panel-topics"
+          role="tabpanel"
+          tabIndex={0}
+        >
+          <TopicCoverage topics={dashboard.topicRows} />
+          <ExtractedTopicsSwitcher
+            initialSource={initialExtractedTopicSource}
+            topics={extractedTopics}
+          />
+        </div>
+      ) : null}
+
+      {selectedTab === "sources" ? (
+        <div
+          aria-labelledby="dashboard-tab-sources"
+          id="dashboard-panel-sources"
+          role="tabpanel"
+          tabIndex={0}
+        >
+          <SourceDetailsTab details={sourceDetails} />
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function DashboardTabNavigation({
+  selectedTab,
+  onSelect,
+}: {
+  selectedTab: DashboardTab;
+  onSelect: (tab: DashboardTab) => void;
+}) {
+  const handleKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentTab: DashboardTab,
+  ) => {
+    const nextTab = getAdjacentTab(
+      DASHBOARD_TABS.map((tab) => tab.id),
+      currentTab,
+      event.key,
+    );
+    if (!nextTab) return;
+
+    event.preventDefault();
+    onSelect(nextTab);
+    requestAnimationFrame(() => {
+      document.getElementById(`dashboard-tab-${nextTab}`)?.focus();
+    });
+  };
+
+  return (
+    <div className="overflow-x-auto border-b border-slate-200">
+      <div
+        aria-label="Analysis dashboard sections"
+        className="flex min-w-max gap-1"
+        role="tablist"
+      >
+        {DASHBOARD_TABS.map((tab) => {
+          const selected = selectedTab === tab.id;
+          return (
+            <button
+              aria-controls={`dashboard-panel-${tab.id}`}
+              aria-selected={selected}
+              className={`relative min-h-11 rounded-t-lg px-4 py-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-700 ${
+                selected
+                  ? "bg-white text-blue-800 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-blue-700"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+              id={`dashboard-tab-${tab.id}`}
+              key={tab.id}
+              onClick={() => onSelect(tab.id)}
+              onKeyDown={(event) => handleKeyDown(event, tab.id)}
+              role="tab"
+              tabIndex={selected ? 0 : -1}
+              type="button"
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function OverviewTab({
+  dashboard,
+  matchSummary,
+}: {
+  dashboard: AnalysisDashboardData;
+  matchSummary: string;
+}) {
+  const distributionLabel = dashboard.distribution
+    .map((item) => `${item.label}: ${item.count}`)
+    .join(", ");
+  const alignmentSummary = getAlignmentSummary(
+    dashboard.totalPdfTopics,
+    dashboard.coveredTopics,
+    dashboard.counts.MISSING,
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
+        <section
+          aria-labelledby="alignment-heading"
+          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+        >
+          <p className="text-sm font-semibold uppercase tracking-[0.14em] text-blue-700">
+            Results overview
+          </p>
+          <h2
+            className="mt-2 text-xl font-semibold text-slate-950"
+            id="alignment-heading"
+          >
+            Lecture–PDF Alignment
+          </h2>
+          <p className="mt-6 text-4xl font-semibold tracking-tight text-slate-950">
+            {percentage(dashboard.overallSimilarityPercentage)}
+          </p>
+          <div
+            aria-label={`Overall lecture-to-PDF alignment: ${percentage(dashboard.overallSimilarityPercentage)}`}
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={dashboard.overallSimilarityPercentage}
+            className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200"
+            role="progressbar"
+          >
+            <div
+              className="h-full rounded-full bg-blue-700"
+              style={{ width: `${dashboard.overallSimilarityPercentage}%` }}
+            />
+          </div>
+          <p className="mt-5 text-sm leading-6 text-slate-700">
+            {alignmentSummary}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">{matchSummary}</p>
+        </section>
+
+        <section
+          aria-labelledby="match-distribution-heading"
+          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+        >
+          <h2
+            className="text-xl font-semibold text-slate-950"
+            id="match-distribution-heading"
+          >
+            Match Distribution
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            PDF topics by stored match category.
+          </p>
+          <div
+            aria-label={`Match distribution. ${distributionLabel}`}
+            className="mt-5 h-52 w-full"
+            role="img"
+          >
+            <ResponsiveContainer height="100%" width="100%">
+              <BarChart
+                accessibilityLayer
+                data={dashboard.distribution}
+                layout="vertical"
+                margin={{ top: 4, right: 32, bottom: 4, left: 0 }}
+              >
+                <CartesianGrid
+                  horizontal={false}
+                  stroke="#e2e8f0"
+                  strokeDasharray="3 3"
+                />
+                <XAxis allowDecimals={false} hide type="number" />
+                <YAxis
+                  axisLine={false}
+                  dataKey="label"
+                  tick={{ fill: "#475569", fontSize: 12 }}
+                  tickLine={false}
+                  type="category"
+                  width={58}
+                />
+                <Tooltip cursor={{ fill: "#f8fafc" }} />
+                <Bar dataKey="count" name="PDF topics" radius={[0, 6, 6, 0]}>
+                  {dashboard.distribution.map((item) => (
+                    <Cell fill={item.color} key={item.matchType} />
+                  ))}
+                  <LabelList
+                    dataKey="count"
+                    fill="#334155"
+                    fontSize={12}
+                    fontWeight={600}
+                    position="right"
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      </div>
+
+      <MissingTopics topics={dashboard.missingTopics} />
+    </div>
+  );
+}
+
+function getAlignmentSummary(total: number, covered: number, missing: number) {
+  if (total === 0) return "No PDF topics were available for comparison.";
+  if (missing === 0) {
+    if (total === 1) return "The PDF topic has a lecture match.";
+    return `All ${total} PDF ${pluralize(total, "topic")} have a lecture match.`;
+  }
+
+  return `${covered} of ${total} PDF ${pluralize(total, "topic")} have a lecture match. ${missing} ${pluralize(missing, "topic")} ${missing === 1 ? "is" : "are"} missing.`;
 }
 
 function Metric({
@@ -187,7 +364,10 @@ function Metric({
   value: number | string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div
+      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      data-primary-metric
+    >
       <p className="text-sm font-medium text-slate-600">{label}</p>
       <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
         {value}
@@ -196,89 +376,301 @@ function Metric({
   );
 }
 
-function MissingTopics({ topics }: { topics: DashboardTopicRow[] }) {
+function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
   return (
     <section
-      aria-labelledby="missing-topics-heading"
-      className="rounded-2xl border border-red-200 bg-red-50 p-6 sm:p-8"
+      aria-labelledby="topic-coverage-heading"
+      className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
     >
-      <h3
-        className="text-xl font-semibold text-red-950"
-        id="missing-topics-heading"
+      <h2
+        className="text-2xl font-semibold tracking-tight text-slate-950"
+        id="topic-coverage-heading"
       >
-        Missing Topics
-      </h3>
+        Topic Coverage
+      </h2>
+      <p className="mt-2 text-sm text-slate-600">
+        Stored similarity and match category for each PDF topic, in PDF order.
+      </p>
       {topics.length > 0 ? (
-        <ul className="mt-5 divide-y divide-red-200">
+        <ul className="mt-6 divide-y divide-slate-200 border-y border-slate-200">
           {topics.map((topic) => (
-            <li
-              className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
-              key={topic.pdfTopicId}
-            >
-              <span className="font-medium text-red-950">
-                {topic.pdfTopicName}
-              </span>
-              <span className="shrink-0 text-sm font-semibold text-red-800">
-                {percentage(topic.similarityPercentage)}
-              </span>
+            <li className="py-4" key={topic.pdfTopicId}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                <p className="min-w-0 font-semibold text-slate-950">
+                  {topic.pdfTopicName}
+                </p>
+                <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                  <span className="text-sm font-semibold tabular-nums text-slate-700">
+                    {percentage(topic.similarityPercentage)}
+                  </span>
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${BADGE_STYLES[topic.matchType]}`}
+                  >
+                    {topic.matchType}
+                  </span>
+                </div>
+              </div>
+              <div
+                aria-label={`${topic.pdfTopicName}: ${percentage(topic.similarityPercentage)} ${topic.matchType.toLowerCase()}`}
+                aria-valuemax={100}
+                aria-valuemin={0}
+                aria-valuenow={topic.similarityPercentage}
+                className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200"
+                role="progressbar"
+              >
+                <div
+                  className={`h-full rounded-full ${PROGRESS_STYLES[topic.matchType]}`}
+                  style={{ width: `${topic.similarityPercentage}%` }}
+                />
+              </div>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="mt-4 text-sm text-red-900">
-          All PDF topics have a lecture match.
+        <p className="mt-6 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
+          No topic comparison results are available.
         </p>
       )}
     </section>
   );
 }
 
-function DetailedComparisons({ topics }: { topics: DashboardTopicRow[] }) {
+function ExtractedTopicsSwitcher({
+  topics,
+  initialSource,
+}: {
+  topics: readonly DashboardExtractedTopic[];
+  initialSource: ExtractedTopicSource;
+}) {
+  const [selectedSource, setSelectedSource] =
+    useState<ExtractedTopicSource>(initialSource);
+  const visibleTopics = topics.filter(
+    (topic) => topic.source === selectedSource,
+  );
+  const selectedLabel =
+    EXTRACTED_TOPIC_TABS.find((tab) => tab.id === selectedSource)?.label ??
+    "Extracted Topics";
+
+  const handleKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentSource: ExtractedTopicSource,
+  ) => {
+    const nextSource = getAdjacentTab(
+      EXTRACTED_TOPIC_TABS.map((tab) => tab.id),
+      currentSource,
+      event.key,
+    );
+    if (!nextSource) return;
+
+    event.preventDefault();
+    setSelectedSource(nextSource);
+    requestAnimationFrame(() => {
+      document.getElementById(`extracted-tab-${nextSource}`)?.focus();
+    });
+  };
+
   return (
     <section
-      aria-labelledby="detailed-comparison-heading"
+      aria-labelledby="extracted-topics-heading"
       className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
     >
-      <h3
-        className="text-xl font-semibold text-slate-950"
-        id="detailed-comparison-heading"
+      <h2
+        className="text-2xl font-semibold tracking-tight text-slate-950"
+        id="extracted-topics-heading"
       >
-        Detailed topic comparison
-      </h3>
-      {topics.length > 0 ? (
-        <ul className="mt-5 divide-y divide-slate-200 border-y border-slate-200">
-          {topics.map((topic) => (
-            <li className="py-5" key={topic.pdfTopicId}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="font-semibold text-slate-950">
-                    {topic.pdfTopicName}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {topic.videoTopicName
-                      ? `Best lecture match: ${topic.videoTopicName}`
-                      : "No lecture match"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 sm:justify-end">
-                  <span className="text-sm font-medium text-slate-700">
-                    {percentage(topic.similarityPercentage)}
-                  </span>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${BADGE_STYLES[topic.matchType]}`}
-                  >
-                    {topic.matchType}
-                  </span>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-5 text-sm text-slate-600">
-          No detailed comparison results are available.
+        Extracted Topics
+      </h2>
+      <p className="mt-2 text-sm text-slate-600">
+        Topics identified from each source with extraction confidence.
+      </p>
+
+      <div className="mt-5 overflow-x-auto">
+        <div
+          aria-label="Extracted topic source"
+          className="inline-flex min-w-max rounded-lg bg-slate-100 p-1"
+          role="tablist"
+        >
+          {EXTRACTED_TOPIC_TABS.map((tab) => {
+            const selected = selectedSource === tab.id;
+            return (
+              <button
+                aria-controls="extracted-topics-panel"
+                aria-selected={selected}
+                className={`min-h-10 rounded-md px-3 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 ${
+                  selected
+                    ? "bg-white text-blue-800 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                id={`extracted-tab-${tab.id}`}
+                key={tab.id}
+                onClick={() => setSelectedSource(tab.id)}
+                onKeyDown={(event) => handleKeyDown(event, tab.id)}
+                role="tab"
+                tabIndex={selected ? 0 : -1}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div
+        aria-labelledby={`extracted-tab-${selectedSource}`}
+        className="mt-6"
+        id="extracted-topics-panel"
+        role="tabpanel"
+        tabIndex={0}
+      >
+        <h3 className="text-lg font-semibold text-slate-950">
+          {selectedLabel}
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">
+          {visibleTopics.length} extracted{" "}
+          {pluralize(visibleTopics.length, "topic")}
         </p>
-      )}
+        {visibleTopics.length > 0 ? (
+          <ul className="mt-5 divide-y divide-slate-200 border-y border-slate-200">
+            {visibleTopics.map((topic, index) => (
+              <li
+                className="flex flex-col gap-1 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
+              >
+                <p className="min-w-0 font-medium text-slate-900">
+                  {topic.name}
+                </p>
+                {topic.confidence !== null ? (
+                  <span className="shrink-0 text-sm font-medium tabular-nums text-slate-600">
+                    Confidence {Math.round(topic.confidence * 100)}%
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
+            No {selectedLabel.toLowerCase()} were extracted.
+          </p>
+        )}
+      </div>
     </section>
   );
+}
+
+function SourceDetailsTab({ details }: { details: DashboardSourceDetails }) {
+  return (
+    <div className="space-y-6">
+      <section
+        aria-labelledby="source-text-heading"
+        className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+      >
+        <h2
+          className="text-xl font-semibold text-slate-950"
+          id="source-text-heading"
+        >
+          Source Text
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Open either source when you need to inspect the extracted text.
+        </p>
+        <div className="mt-5 divide-y divide-slate-200 border-y border-slate-200">
+          <SourceTextDetails
+            emptyMessage="No transcript has been generated yet."
+            label="Lecture transcript"
+            text={details.transcriptText}
+          />
+          <SourceTextDetails
+            emptyMessage="No PDF text has been extracted yet."
+            label="Extracted PDF text"
+            text={details.pdfText}
+          />
+        </div>
+      </section>
+
+    </div>
+  );
+}
+
+function SourceTextDetails({
+  emptyMessage,
+  label,
+  text,
+}: {
+  emptyMessage: string;
+  label: string;
+  text: string | null;
+}) {
+  return (
+    <details>
+      <summary className="cursor-pointer py-4 font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700">
+        {label}
+      </summary>
+      <div className="pb-5">
+        {text ? (
+          <p className="max-h-[32rem] overflow-y-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-5 text-sm leading-7 text-slate-700">
+            {text}
+          </p>
+        ) : (
+          <p className="rounded-xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
+            {emptyMessage}
+          </p>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function MissingTopics({ topics }: { topics: DashboardTopicRow[] }) {
+  if (topics.length === 0) {
+    return (
+      <p className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
+        <span aria-hidden="true">✓</span>
+        <span>No PDF topics are completely missing from the lecture.</span>
+      </p>
+    );
+  }
+
+  return (
+    <section
+      aria-labelledby="missing-topics-heading"
+      className="rounded-xl border border-red-200 bg-red-50 px-5 py-4"
+    >
+      <h2
+        className="text-base font-semibold text-red-950"
+        id="missing-topics-heading"
+      >
+        Missing Topics
+      </h2>
+      <ul className="mt-3 flex flex-wrap gap-2">
+        {topics.map((topic) => (
+          <li
+            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-red-950"
+            key={topic.pdfTopicId}
+          >
+            <span className="font-medium">{topic.pdfTopicName}</span>
+            <span className="ml-2 tabular-nums text-red-700">
+              {percentage(topic.similarityPercentage)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function getAdjacentTab<T extends string>(
+  tabs: readonly T[],
+  current: T,
+  key: string,
+): T | null {
+  const currentIndex = tabs.indexOf(current);
+  if (currentIndex < 0) return null;
+  if (key === "Home") return tabs[0] ?? null;
+  if (key === "End") return tabs.at(-1) ?? null;
+  if (key === "ArrowRight") return tabs[(currentIndex + 1) % tabs.length] ?? null;
+  if (key === "ArrowLeft") {
+    return tabs[(currentIndex - 1 + tabs.length) % tabs.length] ?? null;
+  }
+  return null;
 }

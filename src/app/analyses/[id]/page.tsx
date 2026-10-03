@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { TranscriptionPanel } from "@/components/transcription-panel";
@@ -59,23 +58,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
 
   return (
     <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-6xl px-6 py-12 sm:px-10 sm:py-16">
-      <Link
-        className="text-sm font-medium text-blue-700 hover:text-blue-900"
-        href="/upload"
-      >
-        ← Upload another lecture
-      </Link>
-      <section className="mt-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-700">
-          Analysis
-        </p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-          Lecture analysis
-        </h1>
-        <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
-          LectraLLM processes the lecture and PDF automatically, then shows the
-          completed coverage dashboard here.
-        </p>
+      <section>
         <TranscriptionPanel
           initialAnalysis={{
             id: analysis.id,
