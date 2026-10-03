@@ -97,7 +97,6 @@ export function AnalysisDashboard({
 }: AnalysisDashboardProps) {
   const dashboard = deriveAnalysisDashboard(matches, overallSimilarityScore);
   const [selectedTab, setSelectedTab] = useState<DashboardTab>(initialTab);
-  const matchSummary = `${dashboard.counts.STRONG} strong • ${dashboard.counts.PARTIAL} partial • ${dashboard.counts.WEAK} weak`;
 
   return (
     <section
@@ -123,13 +122,6 @@ export function AnalysisDashboard({
           />
           <Metric label="Missing Topics" value={dashboard.counts.MISSING} />
         </div>
-        <div className="mt-3 flex flex-col gap-1 px-1 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
-          <p>{matchSummary}</p>
-          <p>
-            {dashboard.totalPdfTopics} PDF{" "}
-            {pluralize(dashboard.totalPdfTopics, "topic")} analyzed
-          </p>
-        </div>
       </section>
 
       <DashboardTabNavigation
@@ -144,7 +136,7 @@ export function AnalysisDashboard({
           role="tabpanel"
           tabIndex={0}
         >
-          <OverviewTab dashboard={dashboard} matchSummary={matchSummary} />
+          <OverviewTab dashboard={dashboard} />
         </div>
       ) : null}
 
@@ -238,20 +230,13 @@ function DashboardTabNavigation({
   );
 }
 
-function OverviewTab({
-  dashboard,
-  matchSummary,
-}: {
-  dashboard: AnalysisDashboardData;
-  matchSummary: string;
-}) {
+function OverviewTab({ dashboard }: { dashboard: AnalysisDashboardData }) {
   const distributionLabel = dashboard.distribution
     .map((item) => `${item.label}: ${item.count}`)
     .join(", ");
   const alignmentSummary = getAlignmentSummary(
     dashboard.totalPdfTopics,
     dashboard.coveredTopics,
-    dashboard.counts.MISSING,
   );
 
   return (
@@ -267,26 +252,31 @@ function OverviewTab({
           >
             Lecture–PDF Alignment
           </h2>
-          <p className="mt-5 text-3xl font-semibold tracking-[-0.03em] text-zinc-950 sm:text-4xl">
-            {percentage(dashboard.overallSimilarityPercentage)}
-          </p>
-          <div
-            aria-label={`Overall lecture-to-PDF alignment: ${percentage(dashboard.overallSimilarityPercentage)}`}
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={dashboard.overallSimilarityPercentage}
-            className="mt-4 h-1.5 overflow-hidden rounded-full bg-zinc-200"
-            role="progressbar"
-          >
+          <div className="mt-5 flex min-w-0 items-center gap-3">
             <div
-              className="h-full rounded-full bg-zinc-950"
-              style={{ width: `${dashboard.overallSimilarityPercentage}%` }}
-            />
+              aria-label={`Overall lecture-to-PDF alignment: ${percentage(dashboard.overallSimilarityPercentage)}`}
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={dashboard.overallSimilarityPercentage}
+              className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-200"
+              role="progressbar"
+            >
+              <div
+                className="h-full rounded-full bg-zinc-950"
+                style={{ width: `${dashboard.overallSimilarityPercentage}%` }}
+              />
+            </div>
+            <span
+              className="shrink-0 text-sm font-semibold tabular-nums text-zinc-800"
+              data-alignment-score
+            >
+              {percentage(dashboard.overallSimilarityPercentage)}
+            </span>
           </div>
           <p className="mt-4 text-sm leading-6 text-zinc-700">
             {alignmentSummary}
           </p>
-          <p className="mt-1 text-sm text-zinc-500">{matchSummary}</p>
+          <AlignmentMissingTopics topics={dashboard.missingTopics} />
         </section>
 
         <section
@@ -299,9 +289,6 @@ function OverviewTab({
           >
             Match Distribution
           </h2>
-          <p className="mt-2 text-sm text-zinc-600">
-            PDF topics by stored match category.
-          </p>
           <div
             aria-label={`Match distribution. ${distributionLabel}`}
             className="dashboard-chart mt-4 h-44 w-full sm:h-48 lg:h-52"
@@ -355,20 +342,13 @@ function OverviewTab({
           </div>
         </section>
       </div>
-
-      <MissingTopics topics={dashboard.missingTopics} />
     </div>
   );
 }
 
-function getAlignmentSummary(total: number, covered: number, missing: number) {
+function getAlignmentSummary(total: number, covered: number) {
   if (total === 0) return "No PDF topics were available for comparison.";
-  if (missing === 0) {
-    if (total === 1) return "The PDF topic has a lecture match.";
-    return `All ${total} PDF ${pluralize(total, "topic")} have a lecture match.`;
-  }
-
-  return `${covered} of ${total} PDF ${pluralize(total, "topic")} have a lecture match. ${missing} ${pluralize(missing, "topic")} ${missing === 1 ? "is" : "are"} missing.`;
+  return `${covered} of ${total} PDF ${pluralize(total, "topic")} ${total === 1 ? "is" : "are"} covered.`;
 }
 
 function Metric({
@@ -642,41 +622,40 @@ function SourceTextDetails({
   );
 }
 
-function MissingTopics({ topics }: { topics: DashboardTopicRow[] }) {
+function AlignmentMissingTopics({ topics }: { topics: DashboardTopicRow[] }) {
   if (topics.length === 0) {
     return (
-      <p className="flex items-start gap-2 rounded-xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-sm font-medium text-zinc-900">
+      <p className="mt-4 flex items-center gap-2 border-t border-zinc-200 pt-4 text-sm font-medium text-zinc-800">
         <span aria-hidden="true">✓</span>
-        <span>No PDF topics are completely missing from the lecture.</span>
+        <span>No missing PDF topics</span>
       </p>
     );
   }
 
   return (
-    <section
-      aria-labelledby="missing-topics-heading"
-      className="rounded-xl border border-zinc-300 bg-zinc-100 px-5 py-4"
+    <div
+      className="mt-4 border-t border-zinc-200 pt-4"
+      data-alignment-missing-topics
     >
-      <h2
-        className="text-base font-semibold text-zinc-950"
-        id="missing-topics-heading"
-      >
-        Missing Topics
-      </h2>
-      <ul className="mt-3 flex flex-wrap gap-2">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        {topics.length === 1 ? "Missing" : `Missing topics · ${topics.length}`}
+      </p>
+      <ul className="mt-2 divide-y divide-zinc-200">
         {topics.map((topic) => (
           <li
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950"
+            className="flex min-w-0 flex-col gap-1 py-2 text-sm sm:flex-row sm:items-start sm:justify-between sm:gap-4"
             key={topic.pdfTopicId}
           >
-            <span className="font-medium">{topic.pdfTopicName}</span>
-            <span className="ml-2 tabular-nums text-zinc-600">
+            <span className="min-w-0 break-words font-medium text-zinc-900">
+              {topic.pdfTopicName}
+            </span>
+            <span className="shrink-0 tabular-nums text-zinc-600">
               {percentage(topic.similarityPercentage)}
             </span>
           </li>
         ))}
       </ul>
-    </section>
+    </div>
   );
 }
 

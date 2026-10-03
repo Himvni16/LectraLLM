@@ -118,8 +118,8 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain("Strong Matches");
     expect(html).toContain("1 / 2");
     expect(html).toContain("Missing Topics");
-    expect(html).toContain("1 strong • 0 partial • 0 weak");
-    expect(html).toContain("2 PDF topics analyzed");
+    expect(html).not.toContain("1 strong • 0 partial • 0 weak");
+    expect(html).not.toContain("2 PDF topics analyzed");
   });
 
   it("uses Overview as the default and excludes topic and source details", () => {
@@ -132,12 +132,18 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain('id="dashboard-panel-overview"');
     expect(html).toContain("Lecture–PDF Alignment");
     expect(html).toContain("Overall lecture-to-PDF alignment: 50.0%");
-    expect(html).toContain(
-      "1 of 2 PDF topics have a lecture match. 1 topic is missing.",
+    expect(html).toContain("1 of 2 PDF topics are covered.");
+    expect(html).toMatch(/data-alignment-score="true"[^>]*>50\.0%<\/span>/);
+    expect(html).not.toContain(
+      'class="mt-5 text-3xl font-semibold tracking-[-0.03em] text-zinc-950 sm:text-4xl"',
     );
+    expect(html).not.toContain("1 strong • 0 partial • 0 weak");
     expect(html).toContain("Match Distribution");
     expect(html).toContain("Strong: 1, Partial: 0, Weak: 0, Missing: 1");
+    expect(html).not.toContain("PDF topics by stored match category.");
+    expect(html).toContain('data-alignment-missing-topics="true"');
     expect(html).toContain("Memory Segmentation");
+    expect(html).not.toContain('id="missing-topics-heading"');
     expect(html).not.toContain('id="topic-coverage-heading"');
     expect(html).not.toContain('id="extracted-topics-heading"');
     expect(html).not.toContain('id="analysis-metadata-heading"');
@@ -206,10 +212,9 @@ describe("analysis dashboard rendering", () => {
   it("renders a compact zero-missing state on Overview", () => {
     const html = renderDashboard({ matches: [strongMatch] });
 
-    expect(html).toContain("The PDF topic has a lecture match.");
-    expect(html).toContain(
-      "No PDF topics are completely missing from the lecture.",
-    );
+    expect(html).toContain("1 of 1 PDF topic is covered.");
+    expect(html).toContain("No missing PDF topics");
+    expect(html).not.toContain('data-alignment-missing-topics="true"');
     expect(html).not.toContain('id="missing-topics-heading"');
   });
 
