@@ -264,7 +264,7 @@ function OverviewTab({ dashboard }: { dashboard: AnalysisDashboardData }) {
           </h2>
           <div className="mt-6 flex min-w-0 items-center gap-3">
             <ProgressBar
-              className="min-w-0 flex-1"
+              className="!h-2.5 min-w-0 flex-1"
               label={`Overall lecture-to-PDF alignment: ${percentage(dashboard.overallSimilarityPercentage)}`}
               value={dashboard.overallSimilarityPercentage}
             />
