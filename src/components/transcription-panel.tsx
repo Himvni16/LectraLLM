@@ -124,22 +124,22 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
     return (
       <div className="mt-8 space-y-8">
         <header>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-600 sm:text-sm">
             Completed analysis
           </p>
           <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
-              <h1 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="text-4xl font-semibold tracking-[-0.03em] text-zinc-950 sm:text-5xl">
                 Lecture Analysis
               </h1>
-              <p className="mt-4 break-words text-base font-medium leading-7 text-slate-700 sm:text-lg">
+              <p className="mt-4 break-words text-base font-medium leading-7 text-zinc-700 sm:text-lg">
                 {analysis.videoFileName}
-                <span className="mx-2 font-normal text-slate-400">vs</span>
+                <span className="mx-2 font-normal text-zinc-400">vs</span>
                 {analysis.pdfFileName}
               </p>
             </div>
-            <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800">
-              <span aria-hidden="true" className="size-2 rounded-full bg-emerald-600" />
+            <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-800">
+              <span aria-hidden="true" className="size-2 rounded-full bg-zinc-950" />
               Analysis complete
             </span>
           </div>
@@ -161,20 +161,20 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
   return (
     <div className="mt-8">
       <header>
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-700">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-600 sm:text-sm">
           Analysis
         </p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+        <h1 className="mt-3 text-4xl font-semibold tracking-[-0.03em] text-zinc-950 sm:text-5xl">
           Lecture analysis
         </h1>
-        <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
+        <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg sm:leading-8">
           LectraLLM processes the lecture and PDF automatically, then shows the
           completed coverage dashboard here.
         </p>
       </header>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]">
-      <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-8">
+      <aside className="h-fit rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
         <dl className="space-y-5 text-sm">
           <AnalysisDetail label="Video" value={analysis.videoFileName} />
           <AnalysisDetail label="PDF" value={analysis.pdfFileName} />
@@ -185,11 +185,11 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
           <AnalysisDetail label="Analysis ID" value={analysis.id} />
         </dl>
 
-        <div className="mt-7 border-t border-slate-200 pt-6">
-          <h2 className="text-lg font-semibold text-slate-950">
+        <div className="mt-7 border-t border-zinc-200 pt-6">
+          <h2 className="text-lg font-semibold text-zinc-950">
             {failed ? "Analysis paused" : "Analyzing your lecture"}
           </h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
+          <p className="mt-1 text-sm leading-6 text-zinc-600">
             {failed
               ? GENERIC_FAILURE_MESSAGE
               : getAnalysisStatusLabel(analysis.status)}
@@ -198,7 +198,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
 
           {failed ? (
             <button
-              className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-wait disabled:bg-slate-400"
+              className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-wait disabled:bg-zinc-300 disabled:text-zinc-600"
               disabled={isPipelineRequestActive}
               onClick={() => void startPipeline()}
               type="button"
@@ -210,7 +210,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
 
         {error && !failed ? (
           <p
-            className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+            className="mt-5 rounded-lg border border-zinc-400 bg-zinc-100 px-4 py-3 text-sm text-zinc-900"
             role="alert"
           >
             {error}
@@ -219,14 +219,14 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
       </aside>
 
       <div className="space-y-8">
-        <section className="rounded-2xl border border-blue-100 bg-blue-50 p-6 shadow-sm sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
+        <section className="rounded-2xl border border-zinc-200 bg-zinc-100 p-5 sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 sm:text-sm">
             In progress
           </p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+          <h2 className="mt-2 text-2xl font-semibold text-zinc-950">
             {getAnalysisStatusLabel(analysis.status)}
           </h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <p className="mt-3 text-sm leading-6 text-zinc-600">
             You can leave this page open while LectraLLM works through the
             remaining steps.
           </p>
@@ -291,12 +291,12 @@ function ProgressSteps({ analysis }: { analysis: AnalysisView }) {
             <span
               className={`grid size-6 shrink-0 place-items-center rounded-full border text-xs font-bold ${
                 isComplete
-                  ? "border-emerald-600 bg-emerald-600 text-white"
+                  ? "border-zinc-950 bg-zinc-950 text-white"
                   : isActive
                     ? analysis.status === "FAILED"
-                      ? "border-red-500 bg-red-50 text-red-700"
-                      : "border-blue-600 bg-blue-50 text-blue-700"
-                    : "border-slate-300 bg-white text-slate-400"
+                      ? "border-zinc-950 bg-white text-zinc-950"
+                      : "border-zinc-700 bg-zinc-100 text-zinc-900"
+                    : "border-zinc-300 bg-white text-zinc-400"
               }`}
               aria-hidden="true"
             >
@@ -305,8 +305,8 @@ function ProgressSteps({ analysis }: { analysis: AnalysisView }) {
             <span
               className={
                 isComplete || isActive
-                  ? "font-medium text-slate-900"
-                  : "text-slate-500"
+                  ? "font-medium text-zinc-900"
+                  : "text-zinc-500"
               }
             >
               {label}
@@ -328,26 +328,26 @@ function TopicPanel({
   topics: AnalysisTopicView[];
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-      <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
+    <section className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8">
+      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 sm:text-sm">
         {label}
       </p>
       {topics.length > 0 ? (
         <ul className="mt-5 space-y-3">
           {topics.map((topic, index) => (
             <li
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+              className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3"
               key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-medium text-slate-900">{topic.name}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <p className="font-medium text-zinc-900">{topic.name}</p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
                     {topic.source}
                   </p>
                 </div>
                 {topic.confidence !== null ? (
-                  <span className="shrink-0 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                  <span className="shrink-0 rounded-full bg-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-800">
                     {Math.round(topic.confidence * 100)}%
                   </span>
                 ) : null}
@@ -356,7 +356,7 @@ function TopicPanel({
           ))}
         </ul>
       ) : (
-        <div className="mt-5 rounded-xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
+        <div className="mt-5 rounded-xl bg-zinc-50 p-5 text-sm leading-6 text-zinc-600">
           {emptyMessage}
         </div>
       )}
@@ -367,8 +367,8 @@ function TopicPanel({
 function AnalysisDetail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="font-medium text-slate-500">{label}</dt>
-      <dd className="mt-1 break-words font-medium text-slate-900">{value}</dd>
+      <dt className="font-medium text-zinc-500">{label}</dt>
+      <dd className="mt-1 break-words font-medium text-zinc-900">{value}</dd>
     </div>
   );
 }

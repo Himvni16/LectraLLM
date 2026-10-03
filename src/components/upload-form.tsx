@@ -81,9 +81,9 @@ export function UploadForm({ limits }: UploadFormProps) {
   }
 
   return (
-    <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="mt-10 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
       <form
-        className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+        className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
         onSubmit={handleSubmit}
       >
         <div className="space-y-7">
@@ -108,7 +108,7 @@ export function UploadForm({ limits }: UploadFormProps) {
 
         {error ? (
           <p
-            className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+            className="mt-6 rounded-lg border border-zinc-400 bg-zinc-100 px-4 py-3 text-sm text-zinc-900"
             role="alert"
           >
             {error}
@@ -116,7 +116,7 @@ export function UploadForm({ limits }: UploadFormProps) {
         ) : null}
 
         <button
-          className="mt-7 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-400 sm:w-auto"
+          className="mt-7 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-600 sm:w-auto"
           disabled={isSubmitting || !video || !pdf}
           type="submit"
         >
@@ -125,7 +125,7 @@ export function UploadForm({ limits }: UploadFormProps) {
       </form>
 
       <aside aria-live="polite">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm leading-6 text-slate-600">
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-100 p-5 text-sm leading-6 text-zinc-600 sm:p-6">
           Both files are validated on the server. After upload, LectraLLM opens
           the analysis page and automatically runs transcription, extraction,
           and comparison.
@@ -153,19 +153,19 @@ function FileField({
 }: FileFieldProps) {
   return (
     <div>
-      <label className="block text-sm font-semibold text-slate-900" htmlFor={id}>
+      <label className="block text-sm font-semibold text-zinc-900" htmlFor={id}>
         {label}
       </label>
-      <p className="mt-1 text-sm text-slate-500">{description}</p>
+      <p className="mt-1 text-sm text-zinc-500">{description}</p>
       <input
         accept={accept}
-        className="mt-3 block w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:font-semibold file:text-blue-800 hover:file:bg-blue-100"
+        className="mt-3 block w-full min-w-0 rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-950 file:px-3 file:py-2 file:font-semibold file:text-white hover:file:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 sm:file:mr-4 sm:file:px-4"
         id={id}
         name={id}
         onChange={(event) => onChange(event.target.files?.[0] ?? null)}
         type="file"
       />
-      <p className="mt-2 truncate text-sm text-slate-700">
+      <p className="mt-2 break-all text-sm text-zinc-700">
         {file ? file.name : "No file selected"}
       </p>
     </div>

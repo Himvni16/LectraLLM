@@ -60,17 +60,24 @@ const EXTRACTED_TOPIC_TABS: ReadonlyArray<{
 ];
 
 const BADGE_STYLES: Readonly<Record<DashboardMatchType, string>> = {
-  STRONG: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  PARTIAL: "border-blue-200 bg-blue-50 text-blue-800",
-  WEAK: "border-amber-200 bg-amber-50 text-amber-800",
-  MISSING: "border-red-200 bg-red-50 text-red-800",
+  STRONG: "border-zinc-950 bg-zinc-950 text-white",
+  PARTIAL: "border-zinc-700 bg-zinc-700 text-white",
+  WEAK: "border-zinc-300 bg-zinc-200 text-zinc-950",
+  MISSING: "border-zinc-950 bg-white text-zinc-950",
 };
 
 const PROGRESS_STYLES: Readonly<Record<DashboardMatchType, string>> = {
-  STRONG: "bg-emerald-600",
-  PARTIAL: "bg-blue-600",
-  WEAK: "bg-amber-500",
-  MISSING: "bg-red-600",
+  STRONG: "bg-zinc-950",
+  PARTIAL: "bg-zinc-700",
+  WEAK: "bg-zinc-400",
+  MISSING: "bg-zinc-600",
+};
+
+const CHART_COLORS: Readonly<Record<DashboardMatchType, string>> = {
+  STRONG: "#18181b",
+  PARTIAL: "#52525b",
+  WEAK: "#a1a1aa",
+  MISSING: "#d4d4d8",
 };
 
 function percentage(value: number, fractionDigits = 1): string {
@@ -114,7 +121,7 @@ export function AnalysisDashboard({
           />
           <Metric label="Missing Topics" value={dashboard.counts.MISSING} />
         </div>
-        <div className="mt-4 flex flex-col gap-1 px-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-4 flex flex-col gap-1 px-1 text-sm text-zinc-600 sm:flex-row sm:items-center sm:justify-between">
           <p>{matchSummary}</p>
           <p>
             {dashboard.totalPdfTopics} PDF{" "}
@@ -195,7 +202,7 @@ function DashboardTabNavigation({
   };
 
   return (
-    <div className="overflow-x-auto border-b border-slate-200">
+    <div className="overflow-x-auto border-b border-zinc-200">
       <div
         aria-label="Analysis dashboard sections"
         className="flex min-w-max gap-1"
@@ -207,10 +214,10 @@ function DashboardTabNavigation({
             <button
               aria-controls={`dashboard-panel-${tab.id}`}
               aria-selected={selected}
-              className={`relative min-h-11 rounded-t-lg px-4 py-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-700 ${
+              className={`relative min-h-11 rounded-t-lg px-4 py-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zinc-950 ${
                 selected
-                  ? "bg-white text-blue-800 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-blue-700"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  ? "bg-white text-zinc-950 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-zinc-950"
+                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
               }`}
               id={`dashboard-tab-${tab.id}`}
               key={tab.id}
@@ -250,18 +257,18 @@ function OverviewTab({
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
         <section
           aria-labelledby="alignment-heading"
-          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+          className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
         >
-          <p className="text-sm font-semibold uppercase tracking-[0.14em] text-blue-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600 sm:text-sm">
             Results overview
           </p>
           <h2
-            className="mt-2 text-xl font-semibold text-slate-950"
+            className="mt-2 text-xl font-semibold text-zinc-950"
             id="alignment-heading"
           >
             Lecture–PDF Alignment
           </h2>
-          <p className="mt-6 text-4xl font-semibold tracking-tight text-slate-950">
+          <p className="mt-6 text-4xl font-semibold tracking-tight text-zinc-950">
             {percentage(dashboard.overallSimilarityPercentage)}
           </p>
           <div
@@ -269,31 +276,31 @@ function OverviewTab({
             aria-valuemax={100}
             aria-valuemin={0}
             aria-valuenow={dashboard.overallSimilarityPercentage}
-            className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200"
+            className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-200"
             role="progressbar"
           >
             <div
-              className="h-full rounded-full bg-blue-700"
+              className="h-full rounded-full bg-zinc-950"
               style={{ width: `${dashboard.overallSimilarityPercentage}%` }}
             />
           </div>
-          <p className="mt-5 text-sm leading-6 text-slate-700">
+          <p className="mt-5 text-sm leading-6 text-zinc-700">
             {alignmentSummary}
           </p>
-          <p className="mt-1 text-sm text-slate-500">{matchSummary}</p>
+          <p className="mt-1 text-sm text-zinc-500">{matchSummary}</p>
         </section>
 
         <section
           aria-labelledby="match-distribution-heading"
-          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+          className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
         >
           <h2
-            className="text-xl font-semibold text-slate-950"
+            className="text-xl font-semibold text-zinc-950"
             id="match-distribution-heading"
           >
             Match Distribution
           </h2>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-zinc-600">
             PDF topics by stored match category.
           </p>
           <div
@@ -310,26 +317,29 @@ function OverviewTab({
               >
                 <CartesianGrid
                   horizontal={false}
-                  stroke="#e2e8f0"
+                  stroke="#e4e4e7"
                   strokeDasharray="3 3"
                 />
                 <XAxis allowDecimals={false} hide type="number" />
                 <YAxis
                   axisLine={false}
                   dataKey="label"
-                  tick={{ fill: "#475569", fontSize: 12 }}
+                  tick={{ fill: "#52525b", fontSize: 12 }}
                   tickLine={false}
                   type="category"
                   width={58}
                 />
-                <Tooltip cursor={{ fill: "#f8fafc" }} />
+                <Tooltip cursor={{ fill: "#fafafa" }} />
                 <Bar dataKey="count" name="PDF topics" radius={[0, 6, 6, 0]}>
                   {dashboard.distribution.map((item) => (
-                    <Cell fill={item.color} key={item.matchType} />
+                    <Cell
+                      fill={CHART_COLORS[item.matchType]}
+                      key={item.matchType}
+                    />
                   ))}
                   <LabelList
                     dataKey="count"
-                    fill="#334155"
+                    fill="#3f3f46"
                     fontSize={12}
                     fontWeight={600}
                     position="right"
@@ -365,11 +375,11 @@ function Metric({
 }) {
   return (
     <div
-      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      className="rounded-2xl border border-zinc-200 bg-white p-5"
       data-primary-metric
     >
-      <p className="text-sm font-medium text-slate-600">{label}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
+      <p className="text-sm font-medium text-zinc-600">{label}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">
         {value}
       </p>
     </div>
@@ -380,27 +390,27 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
   return (
     <section
       aria-labelledby="topic-coverage-heading"
-      className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+      className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
     >
       <h2
-        className="text-2xl font-semibold tracking-tight text-slate-950"
+        className="text-2xl font-semibold tracking-tight text-zinc-950"
         id="topic-coverage-heading"
       >
         Topic Coverage
       </h2>
-      <p className="mt-2 text-sm text-slate-600">
+      <p className="mt-2 text-sm text-zinc-600">
         Stored similarity and match category for each PDF topic, in PDF order.
       </p>
       {topics.length > 0 ? (
-        <ul className="mt-6 divide-y divide-slate-200 border-y border-slate-200">
+        <ul className="mt-6 divide-y divide-zinc-200 border-y border-zinc-200">
           {topics.map((topic) => (
             <li className="py-4" key={topic.pdfTopicId}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-                <p className="min-w-0 font-semibold text-slate-950">
+                <p className="min-w-0 font-semibold text-zinc-950">
                   {topic.pdfTopicName}
                 </p>
                 <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                  <span className="text-sm font-semibold tabular-nums text-slate-700">
+                  <span className="text-sm font-semibold tabular-nums text-zinc-700">
                     {percentage(topic.similarityPercentage)}
                   </span>
                   <span
@@ -415,7 +425,7 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
                 aria-valuemax={100}
                 aria-valuemin={0}
                 aria-valuenow={topic.similarityPercentage}
-                className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200"
+                className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-200"
                 role="progressbar"
               >
                 <div
@@ -427,7 +437,7 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
           ))}
         </ul>
       ) : (
-        <p className="mt-6 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
+        <p className="mt-6 rounded-xl bg-zinc-50 p-5 text-sm text-zinc-600">
           No topic comparison results are available.
         </p>
       )}
@@ -472,22 +482,22 @@ function ExtractedTopicsSwitcher({
   return (
     <section
       aria-labelledby="extracted-topics-heading"
-      className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+      className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
     >
       <h2
-        className="text-2xl font-semibold tracking-tight text-slate-950"
+        className="text-2xl font-semibold tracking-tight text-zinc-950"
         id="extracted-topics-heading"
       >
         Extracted Topics
       </h2>
-      <p className="mt-2 text-sm text-slate-600">
+      <p className="mt-2 text-sm text-zinc-600">
         Topics identified from each source with extraction confidence.
       </p>
 
       <div className="mt-5 overflow-x-auto">
         <div
           aria-label="Extracted topic source"
-          className="inline-flex min-w-max rounded-lg bg-slate-100 p-1"
+          className="inline-flex min-w-max rounded-lg bg-zinc-100 p-1"
           role="tablist"
         >
           {EXTRACTED_TOPIC_TABS.map((tab) => {
@@ -496,10 +506,10 @@ function ExtractedTopicsSwitcher({
               <button
                 aria-controls="extracted-topics-panel"
                 aria-selected={selected}
-                className={`min-h-10 rounded-md px-3 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 ${
+                className={`min-h-10 rounded-md px-3 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 ${
                   selected
-                    ? "bg-white text-blue-800 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-white text-zinc-950 shadow-sm"
+                    : "text-zinc-600 hover:text-zinc-950"
                 }`}
                 id={`extracted-tab-${tab.id}`}
                 key={tab.id}
@@ -523,25 +533,25 @@ function ExtractedTopicsSwitcher({
         role="tabpanel"
         tabIndex={0}
       >
-        <h3 className="text-lg font-semibold text-slate-950">
+        <h3 className="text-lg font-semibold text-zinc-950">
           {selectedLabel}
         </h3>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-zinc-500">
           {visibleTopics.length} extracted{" "}
           {pluralize(visibleTopics.length, "topic")}
         </p>
         {visibleTopics.length > 0 ? (
-          <ul className="mt-5 divide-y divide-slate-200 border-y border-slate-200">
+          <ul className="mt-5 divide-y divide-zinc-200 border-y border-zinc-200">
             {visibleTopics.map((topic, index) => (
               <li
                 className="flex flex-col gap-1 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
                 key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
               >
-                <p className="min-w-0 font-medium text-slate-900">
+                <p className="min-w-0 font-medium text-zinc-900">
                   {topic.name}
                 </p>
                 {topic.confidence !== null ? (
-                  <span className="shrink-0 text-sm font-medium tabular-nums text-slate-600">
+                  <span className="shrink-0 text-sm font-medium tabular-nums text-zinc-600">
                     Confidence {Math.round(topic.confidence * 100)}%
                   </span>
                 ) : null}
@@ -549,7 +559,7 @@ function ExtractedTopicsSwitcher({
             ))}
           </ul>
         ) : (
-          <p className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
+          <p className="mt-5 rounded-xl bg-zinc-50 p-5 text-sm text-zinc-600">
             No {selectedLabel.toLowerCase()} were extracted.
           </p>
         )}
@@ -563,18 +573,18 @@ function SourceDetailsTab({ details }: { details: DashboardSourceDetails }) {
     <div className="space-y-6">
       <section
         aria-labelledby="source-text-heading"
-        className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+        className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
       >
         <h2
-          className="text-xl font-semibold text-slate-950"
+          className="text-xl font-semibold text-zinc-950"
           id="source-text-heading"
         >
           Source Text
         </h2>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-zinc-600">
           Open either source when you need to inspect the extracted text.
         </p>
-        <div className="mt-5 divide-y divide-slate-200 border-y border-slate-200">
+        <div className="mt-5 divide-y divide-zinc-200 border-y border-zinc-200">
           <SourceTextDetails
             emptyMessage="No transcript has been generated yet."
             label="Lecture transcript"
@@ -603,16 +613,16 @@ function SourceTextDetails({
 }) {
   return (
     <details>
-      <summary className="cursor-pointer py-4 font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700">
+      <summary className="cursor-pointer py-4 font-medium text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950">
         {label}
       </summary>
       <div className="pb-5">
         {text ? (
-          <p className="max-h-[32rem] overflow-y-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-5 text-sm leading-7 text-slate-700">
+          <p className="max-h-[32rem] overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-zinc-50 p-4 text-sm leading-7 text-zinc-700 sm:p-5">
             {text}
           </p>
         ) : (
-          <p className="rounded-xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
+          <p className="rounded-xl bg-zinc-50 p-5 text-sm leading-6 text-zinc-600">
             {emptyMessage}
           </p>
         )}
@@ -624,7 +634,7 @@ function SourceTextDetails({
 function MissingTopics({ topics }: { topics: DashboardTopicRow[] }) {
   if (topics.length === 0) {
     return (
-      <p className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
+      <p className="flex items-start gap-2 rounded-xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-sm font-medium text-zinc-900">
         <span aria-hidden="true">✓</span>
         <span>No PDF topics are completely missing from the lecture.</span>
       </p>
@@ -634,10 +644,10 @@ function MissingTopics({ topics }: { topics: DashboardTopicRow[] }) {
   return (
     <section
       aria-labelledby="missing-topics-heading"
-      className="rounded-xl border border-red-200 bg-red-50 px-5 py-4"
+      className="rounded-xl border border-zinc-300 bg-zinc-100 px-5 py-4"
     >
       <h2
-        className="text-base font-semibold text-red-950"
+        className="text-base font-semibold text-zinc-950"
         id="missing-topics-heading"
       >
         Missing Topics
@@ -645,11 +655,11 @@ function MissingTopics({ topics }: { topics: DashboardTopicRow[] }) {
       <ul className="mt-3 flex flex-wrap gap-2">
         {topics.map((topic) => (
           <li
-            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-red-950"
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950"
             key={topic.pdfTopicId}
           >
             <span className="font-medium">{topic.pdfTopicName}</span>
-            <span className="ml-2 tabular-nums text-red-700">
+            <span className="ml-2 tabular-nums text-zinc-600">
               {percentage(topic.similarityPercentage)}
             </span>
           </li>

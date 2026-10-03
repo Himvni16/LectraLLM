@@ -75,14 +75,14 @@ export function Icon({
 export function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2.5">
-      <span className="grid size-8 place-items-center rounded-[10px] bg-[#1b1d24] text-white shadow-sm">
+      <span className="grid size-8 place-items-center rounded-[10px] bg-zinc-950 text-white">
         <span className="relative block h-3.5 w-3.5">
           <span className="absolute left-0 top-0 h-3.5 w-1.5 rounded-sm bg-white" />
-          <span className="absolute bottom-0 right-0 h-1.5 w-2 rounded-sm bg-[#8b8cf6]" />
+          <span className="absolute bottom-0 right-0 h-1.5 w-2 rounded-sm bg-zinc-400" />
         </span>
       </span>
       {!compact ? (
-        <span className="text-[15px] font-semibold tracking-[-0.02em] text-[#17191f]">
+        <span className="text-[15px] font-semibold tracking-[-0.02em] text-zinc-950">
           LectraLLM
         </span>
       ) : null}
@@ -92,7 +92,7 @@ export function BrandMark({ compact = false }: { compact?: boolean }) {
 
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5b5ce2]">
+    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-600">
       {children}
     </p>
   );
@@ -110,11 +110,11 @@ export function SectionHeading({
   return (
     <div>
       {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
-      <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-[#17191f] sm:text-4xl">
+      <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-zinc-950 sm:text-4xl">
         {title}
       </h2>
       {description ? (
-        <p className="mt-4 max-w-2xl text-base leading-7 text-[#686b75] sm:text-lg">
+        <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg">
           {description}
         </p>
       ) : null}
@@ -130,8 +130,8 @@ export function EmptyState({
   icon?: IconName;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-[#d9d9d2] bg-[#fafaf8] p-5 text-sm leading-6 text-[#686b75]">
-      <span className="mb-3 grid size-9 place-items-center rounded-xl border border-[#e5e5df] bg-white text-[#5b5ce2] shadow-sm">
+    <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-5 text-sm leading-6 text-zinc-600">
+      <span className="mb-3 grid size-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-800">
         <Icon className="size-4" name={icon} />
       </span>
       {children}
