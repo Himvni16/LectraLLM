@@ -13,7 +13,7 @@ export function Header() {
           LectraLLM
         </Link>
         <nav aria-label="Primary navigation">
-          <ActionLink href="/upload" size="compact">
+          <ActionLink className="!px-3" href="/upload" size="compact">
             Upload lecture
           </ActionLink>
         </nav>
