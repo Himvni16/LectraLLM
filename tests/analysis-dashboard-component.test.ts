@@ -179,6 +179,7 @@ describe("analysis dashboard rendering", () => {
     );
     expect(html).toContain("lg:items-start");
     expect(html).toContain("lg:divide-x");
+    expect(html).toContain("grid border-y border-zinc-200");
     expect(html).toContain('id="topic-coverage-heading"');
     expect(html).toContain("Deadlock Prevention");
     expect(html).toContain("80.0%");
@@ -195,7 +196,8 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain('id="extracted-topics-heading"');
     expect(html).toContain('aria-labelledby="extracted-tab-VIDEO"');
     expect(html).toContain("Lecture Topics");
-    expect(html).toContain("· 1 extracted");
+    expect(html).toContain("· 1");
+    expect(html).not.toContain("· 1 extracted");
     expect(html).toContain("Deadlocks");
     expect(html).toContain("Conf. 95%");
     expect(html).not.toContain(
@@ -214,23 +216,31 @@ describe("analysis dashboard rendering", () => {
     expect(html).toMatch(/aria-selected="true"[^>]*id="extracted-tab-PDF"/);
     expect(html).toContain('aria-labelledby="extracted-tab-PDF"');
     expect(html).toContain("PDF Extraction Topic");
+    expect(html).toContain("PDF Topics");
+    expect(html).toContain("· 1");
     expect(html).toContain("Conf. 90%");
     expect(html).not.toContain("Deadlocks");
   });
 
-  it("limits extracted topics to five and offers an accessible expansion", () => {
+  it("shows all topics at lg while collapsing rows after five below lg", () => {
     const html = renderDashboard({
       extractedTopics: manyExtractedTopics,
       initialTab: "topics",
     });
 
     expect(html).toContain("Lecture Topics");
-    expect(html).toContain("· 7 extracted");
+    expect(html).toContain("· 7");
+    expect(html).not.toContain("· 7 extracted");
     expect(html).toContain("Lecture topic 1");
     expect(html).toContain("Lecture topic 5");
-    expect(html).not.toContain("Lecture topic 6");
-    expect(html).not.toContain("Lecture topic 7");
-    expect(html).toContain("Show all 7");
+    expect(html).toContain("Lecture topic 6");
+    expect(html).toContain("Lecture topic 7");
+    expect(html.match(/hidden lg:flex/g)).toHaveLength(2);
+    expect(html).toContain("View all");
+    expect(html).not.toContain("Show all");
+    expect(html).toMatch(
+      /class="[^"]*lg:hidden[^"]*"[^>]*>View all<\/button>/,
+    );
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("Conf. 90%");
   });
@@ -244,9 +254,13 @@ describe("analysis dashboard rendering", () => {
 
     expect(html).toContain("Lecture topic 6");
     expect(html).toContain("Lecture topic 7");
+    expect(html).not.toContain("hidden lg:flex");
     expect(html).toContain("Show fewer");
+    expect(html).toMatch(
+      /class="[^"]*lg:hidden[^"]*"[^>]*>Show fewer<\/button>/,
+    );
     expect(html).toContain('aria-expanded="true"');
-    expect(html).not.toContain("Show all 7");
+    expect(html).not.toContain("View all");
   });
 
   it("shows collapsed raw sources without metadata or technical details", () => {

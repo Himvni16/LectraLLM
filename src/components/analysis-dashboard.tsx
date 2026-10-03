@@ -145,7 +145,7 @@ export function AnalysisDashboard({
       {selectedTab === "topics" ? (
         <div
           aria-labelledby="dashboard-tab-topics"
-          className="grid gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)] lg:items-start lg:gap-0 lg:divide-x lg:divide-zinc-200"
+          className="grid border-y border-zinc-200 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)] lg:items-start lg:divide-x lg:divide-zinc-200"
           id="dashboard-panel-topics"
           role="tabpanel"
           tabIndex={0}
@@ -378,7 +378,7 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
   return (
     <section
       aria-labelledby="topic-coverage-heading"
-      className="dashboard-panel border-y border-zinc-200 py-5 sm:py-6 lg:pr-8"
+      className="dashboard-panel py-5 sm:py-6 lg:pr-8"
     >
       <h2
         className="text-xl font-semibold tracking-tight text-zinc-950"
@@ -451,7 +451,6 @@ function ExtractedTopicsSwitcher({
     (topic) => topic.source === selectedSource,
   );
   const isExpanded = expandedSources[selectedSource];
-  const visibleTopics = isExpanded ? sourceTopics : sourceTopics.slice(0, 5);
   const selectedLabel =
     EXTRACTED_TOPIC_TABS.find((tab) => tab.id === selectedSource)?.label ??
     "Extracted Topics";
@@ -477,16 +476,16 @@ function ExtractedTopicsSwitcher({
   return (
     <section
       aria-labelledby="extracted-topics-heading"
-      className="dashboard-panel border-t border-zinc-200 py-3 sm:py-4 lg:border-t-0 lg:pl-8"
+      className="dashboard-panel border-t border-zinc-200 py-5 sm:py-6 lg:border-t-0 lg:pl-8"
     >
       <h2
-        className="text-base font-semibold text-zinc-900"
+        className="text-xl font-medium tracking-tight text-zinc-800"
         id="extracted-topics-heading"
       >
         Extracted Topics
       </h2>
 
-      <div className="mt-3 overflow-x-auto">
+      <div className="mt-2 overflow-x-auto">
         <div
           aria-label="Extracted topic source"
           className="inline-flex min-w-max border-b border-zinc-200"
@@ -525,51 +524,51 @@ function ExtractedTopicsSwitcher({
         role="tabpanel"
         tabIndex={0}
       >
-        <h3 className="text-sm font-semibold text-zinc-800">
-          {selectedLabel}
-          <span className="font-normal text-zinc-500">
-            {` · ${sourceTopics.length} extracted`}
-          </span>
-        </h3>
-        {sourceTopics.length > 0 ? (
-          <>
-            <ul
-              className="mt-3 divide-y divide-zinc-100"
-              id={`extracted-topic-list-${selectedSource}`}
+        <div className="flex min-w-0 items-center justify-between gap-4">
+          <h3 className="min-w-0 text-sm font-semibold text-zinc-800">
+            {selectedLabel}
+            <span className="font-normal text-zinc-500">
+              {` · ${sourceTopics.length}`}
+            </span>
+          </h3>
+          {sourceTopics.length > 5 ? (
+            <button
+              aria-controls={`extracted-topic-list-${selectedSource}`}
+              aria-expanded={isExpanded}
+              className="shrink-0 rounded px-1 py-1 text-sm font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-4 transition hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 lg:hidden"
+              onClick={() =>
+                setExpandedSources((current) => ({
+                  ...current,
+                  [selectedSource]: !current[selectedSource],
+                }))
+              }
+              type="button"
             >
-              {visibleTopics.map((topic, index) => (
-                <li
-                  className="flex min-w-0 flex-col gap-1 py-2.5 text-sm sm:flex-row sm:items-start sm:justify-between sm:gap-4"
-                  key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
-                >
-                  <p className="min-w-0 break-words font-medium text-zinc-800">
-                    {topic.name}
-                  </p>
-                  {topic.confidence !== null ? (
-                    <span className="shrink-0 tabular-nums text-zinc-500">
-                      Conf. {Math.round(topic.confidence * 100)}%
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-            {sourceTopics.length > 5 ? (
-              <button
-                aria-controls={`extracted-topic-list-${selectedSource}`}
-                aria-expanded={isExpanded}
-                className="mt-3 min-h-10 rounded px-1 text-sm font-medium text-zinc-700 underline decoration-zinc-300 underline-offset-4 transition hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950"
-                onClick={() =>
-                  setExpandedSources((current) => ({
-                    ...current,
-                    [selectedSource]: !current[selectedSource],
-                  }))
-                }
-                type="button"
+              {isExpanded ? "Show fewer" : "View all"}
+            </button>
+          ) : null}
+        </div>
+        {sourceTopics.length > 0 ? (
+          <ul
+            className="mt-3 divide-y divide-zinc-100"
+            id={`extracted-topic-list-${selectedSource}`}
+          >
+            {sourceTopics.map((topic, index) => (
+              <li
+                className={`${!isExpanded && index >= 5 ? "hidden lg:flex" : "flex"} min-w-0 flex-col gap-1 py-2.5 text-sm sm:flex-row sm:items-start sm:justify-between sm:gap-4`}
+                key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
               >
-                {isExpanded ? "Show fewer" : `Show all ${sourceTopics.length}`}
-              </button>
-            ) : null}
-          </>
+                <p className="min-w-0 break-words font-medium text-zinc-800">
+                  {topic.name}
+                </p>
+                {topic.confidence !== null ? (
+                  <span className="shrink-0 tabular-nums text-zinc-500">
+                    Conf. {Math.round(topic.confidence * 100)}%
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
         ) : (
           <p className="mt-3 bg-zinc-50 p-4 text-sm text-zinc-600">
             No {selectedLabel.toLowerCase()} were extracted.
