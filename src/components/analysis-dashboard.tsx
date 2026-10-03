@@ -257,7 +257,7 @@ function OverviewTab({ dashboard }: { dashboard: AnalysisDashboardData }) {
           className="dashboard-panel !pt-1 pb-6 xl:pr-8"
         >
           <h2
-            className="text-base font-semibold text-zinc-950"
+            className="text-center text-base font-semibold text-zinc-950"
             id="alignment-heading"
           >
             Lecture–PDF Alignment
@@ -286,7 +286,7 @@ function OverviewTab({ dashboard }: { dashboard: AnalysisDashboardData }) {
           className="dashboard-panel border-t border-zinc-200 py-6 xl:border-t-0 xl:!pt-1 xl:pl-8"
         >
           <h2
-            className="text-base font-semibold text-zinc-950"
+            className="text-center text-base font-semibold text-zinc-950"
             id="match-distribution-heading"
           >
             Match Distribution
