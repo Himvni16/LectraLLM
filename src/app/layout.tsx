@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
+import { Geist } from "next/font/google";
 
 import { Header } from "@/components/header";
 
 import "./globals.css";
+
+const geist = Geist({
+  display: "swap",
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+});
 
 export const metadata: Metadata = {
   title: "LectraLLM",
@@ -16,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body className={geist.variable}>
         <Header />
         {children}
       </body>

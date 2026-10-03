@@ -389,7 +389,7 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
       className="dashboard-panel !pt-1 pb-5 sm:pb-6 lg:pr-8"
     >
       <h2
-        className="text-xl font-semibold tracking-tight text-zinc-950"
+        className="text-xl font-medium tracking-tight text-zinc-950"
         id="topic-coverage-heading"
       >
         Topic Coverage
