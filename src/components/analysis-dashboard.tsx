@@ -42,6 +42,7 @@ interface AnalysisDashboardProps {
   sourceDetails: DashboardSourceDetails;
   initialTab?: DashboardTab;
   initialExtractedTopicSource?: ExtractedTopicSource;
+  initialExpandedExtractedTopicSources?: readonly ExtractedTopicSource[];
 }
 
 const DASHBOARD_TABS: ReadonlyArray<{ id: DashboardTab; label: string }> = [
@@ -94,6 +95,7 @@ export function AnalysisDashboard({
   sourceDetails,
   initialTab = "overview",
   initialExtractedTopicSource = "VIDEO",
+  initialExpandedExtractedTopicSources = [],
 }: AnalysisDashboardProps) {
   const dashboard = deriveAnalysisDashboard(matches, overallSimilarityScore);
   const [selectedTab, setSelectedTab] = useState<DashboardTab>(initialTab);
@@ -150,6 +152,7 @@ export function AnalysisDashboard({
         >
           <TopicCoverage topics={dashboard.topicRows} />
           <ExtractedTopicsSwitcher
+            initialExpandedSources={initialExpandedExtractedTopicSources}
             initialSource={initialExtractedTopicSource}
             topics={extractedTopics}
           />
@@ -383,51 +386,41 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
       >
         Topic Coverage
       </h2>
-      <p className="mt-2 text-sm text-zinc-600">
-        Stored similarity and match category for each PDF topic, in PDF order.
-      </p>
       {topics.length > 0 ? (
-        <>
-          <div className="mt-6 hidden grid-cols-[minmax(0,1fr)_7rem_5rem] gap-4 border-y border-zinc-200 py-2.5 text-xs font-medium text-zinc-500 sm:grid">
-            <span>Topic</span>
-            <span>Match</span>
-            <span className="text-right">Score</span>
-          </div>
-          <ul className="divide-y divide-zinc-200 border-b border-zinc-200 sm:border-b-0">
-            {topics.map((topic) => (
-              <li className="py-3.5" key={topic.pdfTopicId}>
-                <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_7rem_5rem] sm:items-center sm:gap-4">
-                  <p className="min-w-0 font-semibold text-zinc-950">
-                    {topic.pdfTopicName}
-                  </p>
-                  <div className="flex items-center justify-between gap-3 sm:contents">
-                    <span
-                      className={`w-fit rounded-md border px-2 py-0.5 text-[11px] font-semibold ${BADGE_STYLES[topic.matchType]}`}
-                    >
-                      {topic.matchType}
-                    </span>
-                    <span className="text-sm font-semibold tabular-nums text-zinc-700">
-                      {percentage(topic.similarityPercentage)}
-                    </span>
-                  </div>
+        <ul className="mt-4 divide-y divide-zinc-100">
+          {topics.map((topic) => (
+            <li className="py-3" key={topic.pdfTopicId}>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-3">
+                <p className="min-w-0 break-words font-medium text-zinc-950">
+                  {topic.pdfTopicName}
+                </p>
+                <div className="flex items-center justify-between gap-3 sm:contents">
+                  <span
+                    className={`w-fit rounded-md border px-2 py-0.5 text-[11px] font-semibold ${BADGE_STYLES[topic.matchType]}`}
+                  >
+                    {topic.matchType}
+                  </span>
+                  <span className="min-w-14 text-right text-sm font-medium tabular-nums text-zinc-600">
+                    {percentage(topic.similarityPercentage)}
+                  </span>
                 </div>
+              </div>
+              <div
+                aria-label={`${topic.pdfTopicName}: ${percentage(topic.similarityPercentage)} ${topic.matchType.toLowerCase()}`}
+                aria-valuemax={100}
+                aria-valuemin={0}
+                aria-valuenow={topic.similarityPercentage}
+                className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-200"
+                role="progressbar"
+              >
                 <div
-                  aria-label={`${topic.pdfTopicName}: ${percentage(topic.similarityPercentage)} ${topic.matchType.toLowerCase()}`}
-                  aria-valuemax={100}
-                  aria-valuemin={0}
-                  aria-valuenow={topic.similarityPercentage}
-                  className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-zinc-200"
-                  role="progressbar"
-                >
-                  <div
-                    className={`h-full rounded-full ${PROGRESS_STYLES[topic.matchType]}`}
-                    style={{ width: `${topic.similarityPercentage}%` }}
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-        </>
+                  className={`h-full rounded-full ${PROGRESS_STYLES[topic.matchType]}`}
+                  style={{ width: `${topic.similarityPercentage}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
       ) : (
         <p className="mt-6 rounded-xl bg-zinc-50 p-5 text-sm text-zinc-600">
           No topic comparison results are available.
@@ -440,15 +433,25 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
 function ExtractedTopicsSwitcher({
   topics,
   initialSource,
+  initialExpandedSources,
 }: {
   topics: readonly DashboardExtractedTopic[];
   initialSource: ExtractedTopicSource;
+  initialExpandedSources: readonly ExtractedTopicSource[];
 }) {
   const [selectedSource, setSelectedSource] =
     useState<ExtractedTopicSource>(initialSource);
-  const visibleTopics = topics.filter(
+  const [expandedSources, setExpandedSources] = useState<
+    Record<ExtractedTopicSource, boolean>
+  >({
+    VIDEO: initialExpandedSources.includes("VIDEO"),
+    PDF: initialExpandedSources.includes("PDF"),
+  });
+  const sourceTopics = topics.filter(
     (topic) => topic.source === selectedSource,
   );
+  const isExpanded = expandedSources[selectedSource];
+  const visibleTopics = isExpanded ? sourceTopics : sourceTopics.slice(0, 5);
   const selectedLabel =
     EXTRACTED_TOPIC_TABS.find((tab) => tab.id === selectedSource)?.label ??
     "Extracted Topics";
@@ -474,19 +477,16 @@ function ExtractedTopicsSwitcher({
   return (
     <section
       aria-labelledby="extracted-topics-heading"
-      className="dashboard-panel border-y border-zinc-200 py-5 sm:py-6"
+      className="dashboard-panel border-t border-zinc-200 py-3 sm:py-4"
     >
       <h2
-        className="text-xl font-semibold tracking-tight text-zinc-950"
+        className="text-base font-semibold text-zinc-900"
         id="extracted-topics-heading"
       >
         Extracted Topics
       </h2>
-      <p className="mt-2 text-sm text-zinc-600">
-        Topics identified from each source with extraction confidence.
-      </p>
 
-      <div className="mt-5 overflow-x-auto">
+      <div className="mt-3 overflow-x-auto">
         <div
           aria-label="Extracted topic source"
           className="inline-flex min-w-max border-b border-zinc-200"
@@ -498,7 +498,7 @@ function ExtractedTopicsSwitcher({
               <button
                 aria-controls="extracted-topics-panel"
                 aria-selected={selected}
-                className={`relative min-h-10 px-3 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 ${
+                className={`relative min-h-9 px-2.5 py-1.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 ${
                   selected
                     ? "text-zinc-950 after:absolute after:inset-x-2 after:bottom-[-1px] after:h-px after:bg-zinc-950"
                     : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-950"
@@ -520,38 +520,58 @@ function ExtractedTopicsSwitcher({
 
       <div
         aria-labelledby={`extracted-tab-${selectedSource}`}
-        className="mt-6"
+        className="mt-4"
         id="extracted-topics-panel"
         role="tabpanel"
         tabIndex={0}
       >
-        <h3 className="text-lg font-semibold text-zinc-950">
+        <h3 className="text-sm font-semibold text-zinc-800">
           {selectedLabel}
+          <span className="font-normal text-zinc-500">
+            {` · ${sourceTopics.length} extracted`}
+          </span>
         </h3>
-        <p className="mt-1 text-sm text-zinc-500">
-          {visibleTopics.length} extracted{" "}
-          {pluralize(visibleTopics.length, "topic")}
-        </p>
-        {visibleTopics.length > 0 ? (
-          <ul className="mt-5 divide-y divide-zinc-200 border-y border-zinc-200">
-            {visibleTopics.map((topic, index) => (
-              <li
-                className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
-                key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
+        {sourceTopics.length > 0 ? (
+          <>
+            <ul
+              className="mt-3 divide-y divide-zinc-100"
+              id={`extracted-topic-list-${selectedSource}`}
+            >
+              {visibleTopics.map((topic, index) => (
+                <li
+                  className="flex min-w-0 flex-col gap-1 py-2.5 text-sm sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                  key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
+                >
+                  <p className="min-w-0 break-words font-medium text-zinc-800">
+                    {topic.name}
+                  </p>
+                  {topic.confidence !== null ? (
+                    <span className="shrink-0 tabular-nums text-zinc-500">
+                      Conf. {Math.round(topic.confidence * 100)}%
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            {sourceTopics.length > 5 ? (
+              <button
+                aria-controls={`extracted-topic-list-${selectedSource}`}
+                aria-expanded={isExpanded}
+                className="mt-3 min-h-10 rounded px-1 text-sm font-medium text-zinc-700 underline decoration-zinc-300 underline-offset-4 transition hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950"
+                onClick={() =>
+                  setExpandedSources((current) => ({
+                    ...current,
+                    [selectedSource]: !current[selectedSource],
+                  }))
+                }
+                type="button"
               >
-                <p className="min-w-0 font-medium text-zinc-900">
-                  {topic.name}
-                </p>
-                {topic.confidence !== null ? (
-                  <span className="shrink-0 text-sm font-medium tabular-nums text-zinc-600">
-                    Confidence {Math.round(topic.confidence * 100)}%
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+                {isExpanded ? "Show fewer" : `Show all ${sourceTopics.length}`}
+              </button>
+            ) : null}
+          </>
         ) : (
-          <p className="mt-5 rounded-xl bg-zinc-50 p-5 text-sm text-zinc-600">
+          <p className="mt-3 bg-zinc-50 p-4 text-sm text-zinc-600">
             No {selectedLabel.toLowerCase()} were extracted.
           </p>
         )}

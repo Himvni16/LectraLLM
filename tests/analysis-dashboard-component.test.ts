@@ -22,7 +22,10 @@ vi.mock("recharts", async () => {
   };
 });
 
-import { AnalysisDashboard } from "@/components/analysis-dashboard";
+import {
+  AnalysisDashboard,
+  type DashboardExtractedTopic,
+} from "@/components/analysis-dashboard";
 import { TranscriptionPanel } from "@/components/transcription-panel";
 import type { DashboardMatch } from "@/lib/analysis-dashboard";
 
@@ -59,6 +62,16 @@ const extractedTopics = [
   },
 ];
 
+const manyExtractedTopics: DashboardExtractedTopic[] = Array.from(
+  { length: 7 },
+  (_, index) => ({
+    id: `video-${index + 1}`,
+    name: `Lecture topic ${index + 1}`,
+    source: "VIDEO",
+    confidence: 0.9 + index * 0.01,
+  }),
+);
+
 const sourceDetails = {
   transcriptText: "Lecture transcript body",
   pdfText: "PDF source text body",
@@ -82,17 +95,21 @@ function renderDashboard(
   options: {
     initialTab?: "overview" | "topics" | "sources";
     initialExtractedTopicSource?: "VIDEO" | "PDF";
+    initialExpandedExtractedTopicSources?: readonly ("VIDEO" | "PDF")[];
+    extractedTopics?: DashboardExtractedTopic[];
     matches?: DashboardMatch[];
   } = {},
 ) {
   return renderToStaticMarkup(
     React.createElement(AnalysisDashboard, {
-      extractedTopics,
+      extractedTopics: options.extractedTopics ?? extractedTopics,
       matches: options.matches ?? [strongMatch, missingMatch],
       overallSimilarityScore: 50,
       sourceDetails,
       initialTab: options.initialTab,
       initialExtractedTopicSource: options.initialExtractedTopicSource,
+      initialExpandedExtractedTopicSources:
+        options.initialExpandedExtractedTopicSources,
     }),
   );
 }
@@ -162,13 +179,23 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain("80.0%");
     expect(html).toContain("Memory Segmentation");
     expect(html).toContain("20.0%");
+    expect(html).toContain(">STRONG</span>");
+    expect(html).toContain(">MISSING</span>");
+    expect(html.match(/role="progressbar"/g)).toHaveLength(2);
+    expect(html).not.toContain(
+      "Stored similarity and match category for each PDF topic, in PDF order.",
+    );
     expect(html).not.toContain("Best lecture match");
     expect(html).not.toContain("No lecture match");
     expect(html).toContain('id="extracted-topics-heading"');
     expect(html).toContain('aria-labelledby="extracted-tab-VIDEO"');
-    expect(html).toContain("1 extracted topic");
+    expect(html).toContain("Lecture Topics");
+    expect(html).toContain("· 1 extracted");
     expect(html).toContain("Deadlocks");
-    expect(html).toContain("Confidence 95%");
+    expect(html).toContain("Conf. 95%");
+    expect(html).not.toContain(
+      "Topics identified from each source with extraction confidence.",
+    );
     expect(html).not.toContain("PDF Extraction Topic");
     expect(html).not.toContain("Lecture–PDF Alignment");
   });
@@ -182,8 +209,39 @@ describe("analysis dashboard rendering", () => {
     expect(html).toMatch(/aria-selected="true"[^>]*id="extracted-tab-PDF"/);
     expect(html).toContain('aria-labelledby="extracted-tab-PDF"');
     expect(html).toContain("PDF Extraction Topic");
-    expect(html).toContain("Confidence 90%");
+    expect(html).toContain("Conf. 90%");
     expect(html).not.toContain("Deadlocks");
+  });
+
+  it("limits extracted topics to five and offers an accessible expansion", () => {
+    const html = renderDashboard({
+      extractedTopics: manyExtractedTopics,
+      initialTab: "topics",
+    });
+
+    expect(html).toContain("Lecture Topics");
+    expect(html).toContain("· 7 extracted");
+    expect(html).toContain("Lecture topic 1");
+    expect(html).toContain("Lecture topic 5");
+    expect(html).not.toContain("Lecture topic 6");
+    expect(html).not.toContain("Lecture topic 7");
+    expect(html).toContain("Show all 7");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain("Conf. 90%");
+  });
+
+  it("renders all extracted topics and a collapse action when expanded", () => {
+    const html = renderDashboard({
+      extractedTopics: manyExtractedTopics,
+      initialExpandedExtractedTopicSources: ["VIDEO"],
+      initialTab: "topics",
+    });
+
+    expect(html).toContain("Lecture topic 6");
+    expect(html).toContain("Lecture topic 7");
+    expect(html).toContain("Show fewer");
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).not.toContain("Show all 7");
   });
 
   it("shows collapsed raw sources without metadata or technical details", () => {
