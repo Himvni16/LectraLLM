@@ -448,7 +448,7 @@ function ExtractedTopicsSwitcher({
 
       <TabsList
         ariaLabel="Extracted topic source"
-        className="mt-2 w-fit max-w-full"
+        className="mt-2 w-fit max-w-full [&_[role=tablist]]:gap-1"
       >
         {EXTRACTED_TOPIC_TABS.map((tab) => {
           const selected = selectedSource === tab.id;
@@ -456,6 +456,7 @@ function ExtractedTopicsSwitcher({
             <TabButton
               aria-controls="extracted-topics-panel"
               aria-selected={selected}
+              className="!h-8 !px-2 !text-xs"
               id={`extracted-tab-${tab.id}`}
               key={tab.id}
               onClick={() => setSelectedSource(tab.id)}
@@ -473,18 +474,15 @@ function ExtractedTopicsSwitcher({
 
       <div
         aria-labelledby={`extracted-tab-${selectedSource}`}
-        className="mt-4"
+        className="mt-3"
         id="extracted-topics-panel"
         role="tabpanel"
         tabIndex={0}
       >
         <div className="flex min-w-0 items-center justify-between gap-4">
-          <h3 className="min-w-0 text-sm font-medium text-zinc-700">
-            {selectedLabel}
-            <span className="font-normal text-zinc-500">
-              {` · ${sourceTopics.length}`}
-            </span>
-          </h3>
+          <p className="min-w-0 text-xs text-zinc-500">
+            {sourceTopics.length} {pluralize(sourceTopics.length, "topic")}
+          </p>
           {sourceTopics.length > 5 ? (
             <button
               aria-controls={`extracted-topic-list-${selectedSource}`}

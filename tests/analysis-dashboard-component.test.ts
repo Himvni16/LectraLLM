@@ -218,8 +218,9 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain('id="extracted-topics-heading"');
     expect(html).toContain('aria-labelledby="extracted-tab-VIDEO"');
     expect(html).toContain("Lecture Topics");
-    expect(html).toContain("· 1");
-    expect(html).not.toContain("· 1 extracted");
+    expect(html).toContain("1 topic");
+    expect(html).not.toContain("Lecture Topics · 1");
+    expect(html).toContain("!h-8 !px-2 !text-xs");
     expect(html).toContain("Deadlocks");
     expect(html).not.toContain("Conf.");
     expect(html).toContain(
@@ -246,7 +247,8 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain('aria-labelledby="extracted-tab-PDF"');
     expect(html).toContain("PDF Extraction Topic");
     expect(html).toContain("PDF Topics");
-    expect(html).toContain("· 1");
+    expect(html).toContain("1 topic");
+    expect(html).not.toContain("PDF Topics · 1");
     expect(html).not.toContain("Conf.");
     expect(html).not.toContain("Deadlocks");
   });
@@ -258,8 +260,8 @@ describe("analysis dashboard rendering", () => {
     });
 
     expect(html).toContain("Lecture Topics");
-    expect(html).toContain("· 7");
-    expect(html).not.toContain("· 7 extracted");
+    expect(html).toContain("7 topics");
+    expect(html).not.toContain("Lecture Topics · 7");
     expect(html).toContain("Lecture topic 1");
     expect(html).toContain("Lecture topic 5");
     expect(html).toContain("Lecture topic 6");
