@@ -14,15 +14,15 @@ export default function UploadPage() {
   const limits = getUploadLimits();
 
   return (
-    <main className="page-shell mx-auto max-w-6xl px-4 sm:px-6 lg:px-10">
-      <section className="mx-auto max-w-4xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
+    <main className="page-shell mx-auto max-w-[70rem] px-4 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-3xl">
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
           New analysis
         </p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-[-0.03em] text-zinc-950 sm:text-5xl">
+        <h1 className="mt-6 text-5xl font-semibold tracking-[-0.045em] text-black sm:text-6xl">
           Analyze lecture
         </h1>
-        <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg sm:leading-8">
+        <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg sm:leading-8">
           Add a lecture video and the PDF material it should cover. The analysis
           starts automatically after upload.
         </p>

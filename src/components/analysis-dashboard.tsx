@@ -74,10 +74,10 @@ const PROGRESS_STYLES: Readonly<Record<DashboardMatchType, string>> = {
 };
 
 const CHART_COLORS: Readonly<Record<DashboardMatchType, string>> = {
-  STRONG: "#18181b",
-  PARTIAL: "#52525b",
-  WEAK: "#a1a1aa",
-  MISSING: "#d4d4d8",
+  STRONG: "#000000",
+  PARTIAL: "#616161",
+  WEAK: "#8a8a8a",
+  MISSING: "#c2c2c2",
 };
 
 function percentage(value: number, fractionDigits = 1): string {
@@ -324,14 +324,14 @@ function OverviewTab({ dashboard }: { dashboard: AnalysisDashboardData }) {
                 <Tooltip
                   contentStyle={{
                     background: "#ffffff",
-                    border: "1px solid #e4e4e7",
+                    border: "1px solid #e8e8e8",
                     borderRadius: 8,
                     boxShadow: "none",
                     fontSize: 12,
                   }}
-                  cursor={{ fill: "#fafafa" }}
-                  itemStyle={{ color: "#18181b" }}
-                  labelStyle={{ color: "#52525b" }}
+                  cursor={{ fill: "#fbfaf6" }}
+                  itemStyle={{ color: "#000000" }}
+                  labelStyle={{ color: "#616161" }}
                 />
                 <Bar dataKey="count" name="PDF topics" radius={[0, 6, 6, 0]}>
                   {dashboard.distribution.map((item) => (
@@ -342,7 +342,7 @@ function OverviewTab({ dashboard }: { dashboard: AnalysisDashboardData }) {
                   ))}
                   <LabelList
                     dataKey="count"
-                    fill="#3f3f46"
+                    fill="#616161"
                     fontSize={12}
                     fontWeight={600}
                     position="right"

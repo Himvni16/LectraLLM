@@ -124,12 +124,12 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
     return (
       <div className="analysis-shell space-y-5 sm:space-y-6 lg:space-y-8">
         <header>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-600 sm:text-sm">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
             Completed analysis
           </p>
-          <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
-              <h1 className="text-4xl font-semibold tracking-[-0.03em] text-zinc-950 sm:text-5xl">
+              <h1 className="text-5xl font-semibold tracking-[-0.045em] text-black sm:text-6xl">
                 Lecture Analysis
               </h1>
               <p className="mt-4 break-words text-base font-medium leading-7 text-zinc-700 sm:text-lg">
@@ -163,10 +163,10 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
   return (
     <div className="analysis-shell">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-600 sm:text-sm">
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
           Analysis
         </p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-[-0.03em] text-zinc-950 sm:text-5xl">
+        <h1 className="mt-6 text-5xl font-semibold tracking-[-0.045em] text-black sm:text-6xl">
           Lecture analysis
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg sm:leading-8">
@@ -175,7 +175,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
         </p>
       </header>
 
-      <div className="analysis-section-gap mt-6 grid min-w-0 border-y border-zinc-200 lg:mt-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:divide-x lg:divide-zinc-200">
+      <div className="analysis-section-gap mt-8 grid min-w-0 border-y border-zinc-200 lg:grid-cols-[minmax(0,1fr)_20rem] lg:divide-x lg:divide-zinc-200">
         <section className="py-5 sm:py-6 lg:pr-8">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
             {failed ? "Needs attention" : "In progress"}
@@ -192,7 +192,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
 
           {failed ? (
             <button
-              className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-wait disabled:bg-zinc-300 disabled:text-zinc-600"
+              className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-black px-6 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-wait disabled:bg-zinc-300 disabled:text-zinc-600"
               disabled={isPipelineRequestActive}
               onClick={() => void startPipeline()}
               type="button"

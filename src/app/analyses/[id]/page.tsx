@@ -57,7 +57,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
   }
 
   return (
-    <main className="page-shell mx-auto max-w-6xl px-4 sm:px-6 lg:px-10">
+    <main className="page-shell mx-auto max-w-[70rem] px-4 sm:px-6 lg:px-8">
       <section>
         <TranscriptionPanel
           initialAnalysis={{

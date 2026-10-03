@@ -1,8 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f7f5;
-  --foreground: #18181b;
+  --background: #fbfaf6;
+  --foreground: #000000;
+  --line: #e8e8e8;
+  --muted: #616161;
+  --color-zinc-50: #fbfaf6;
+  --color-zinc-100: #f3f2ed;
+  --color-zinc-200: #e8e8e8;
+  --color-zinc-300: #c2c2c2;
+  --color-zinc-400: #8a8a8a;
+  --color-zinc-500: #8a8a8a;
+  --color-zinc-600: #616161;
+  --color-zinc-700: #616161;
+  --color-zinc-800: #000000;
+  --color-zinc-900: #000000;
+  --color-zinc-950: #000000;
 }
 
 * {
@@ -28,6 +41,8 @@ body {
     ui-sans-serif,
     system-ui,
     sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
@@ -86,9 +101,6 @@ body {
     margin-top: 2rem;
   }
 
-  .upload-workspace > form {
-    padding-block: 1.5rem;
-  }
 }
 
 @media (min-width: 1440px) and (min-height: 900px) {

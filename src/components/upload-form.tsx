@@ -81,12 +81,12 @@ export function UploadForm({ limits }: UploadFormProps) {
   }
 
   return (
-    <div className="upload-workspace mt-8 max-w-4xl min-w-0 sm:mt-10">
+    <div className="upload-workspace mt-10 max-w-3xl min-w-0 sm:mt-12">
       <form
-        className="min-w-0 border-y border-zinc-200 py-6 sm:py-8"
+        className="min-w-0 border-t border-zinc-200"
         onSubmit={handleSubmit}
       >
-        <div className="grid gap-5 sm:gap-6 md:grid-cols-2">
+        <div className="grid divide-y divide-zinc-200 border-b border-zinc-200 md:grid-cols-2 md:divide-x md:divide-y-0">
           <FileField
             accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
             description={`MP4, MOV, or WebM · up to ${limits.videoMaxSizeMb} MB`}
@@ -116,7 +116,7 @@ export function UploadForm({ limits }: UploadFormProps) {
         ) : null}
 
         <button
-          className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-600 sm:mt-6 sm:w-auto"
+          className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-black px-6 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-600 sm:mt-6 sm:w-auto"
           disabled={isSubmitting || !video || !pdf}
           type="submit"
         >
@@ -149,14 +149,14 @@ function FileField({
   onChange,
 }: FileFieldProps) {
   return (
-    <div>
+    <div className="min-w-0 py-6 md:py-8 md:first:pr-6 md:last:pl-6">
       <label className="block text-sm font-semibold text-zinc-900" htmlFor={id}>
         {label}
       </label>
       <p className="mt-1 text-sm text-zinc-500">{description}</p>
       <input
         accept={accept}
-        className="mt-3 block w-full min-w-0 rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-950 file:px-3 file:py-2 file:font-semibold file:text-white hover:file:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 sm:file:mr-4 sm:file:px-4"
+        className="mt-4 block w-full min-w-0 rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-700 file:mr-3 file:rounded-full file:border-0 file:bg-black file:px-3 file:py-2 file:font-medium file:text-white hover:file:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black sm:file:mr-4 sm:file:px-4"
         id={id}
         name={id}
         onChange={(event) => onChange(event.target.files?.[0] ?? null)}
