@@ -127,7 +127,16 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain("lecture.mp4");
     expect(html).toContain("notes.pdf");
     expect(html).toContain("Analysis complete");
-    expect(html.match(/data-primary-metric/g)).toHaveLength(4);
+    expect(html.match(/data-primary-metric="true"/g)).toHaveLength(4);
+    expect(html).toContain(
+      'class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-primary-metrics="true"',
+    );
+    expect(html.match(/rounded-lg border border-zinc-200 bg-white/g)).toHaveLength(
+      4,
+    );
+    expect(html).not.toContain(
+      'class="grid border-y border-zinc-200 sm:grid-cols-2 lg:grid-cols-4"',
+    );
     expect(html).toContain("Overall Match");
     expect(html).toContain("50.0%");
     expect(html).toContain("Topic Coverage");
@@ -143,6 +152,11 @@ describe("analysis dashboard rendering", () => {
     const html = renderDashboard();
 
     expect(html).toContain('role="tablist"');
+    expect(html).toContain(
+      'class="flex flex-col gap-2 sm:gap-3" data-dashboard-tabs="true"',
+    );
+    expect(html).toContain("relative min-h-11 px-3 py-2.5 text-sm");
+    expect(html).toContain("dashboard-panel !pt-1 pb-5 sm:pb-6 xl:pr-8");
     expect(html).toMatch(
       /aria-selected="true"[^>]*id="dashboard-tab-overview"/,
     );
@@ -179,8 +193,9 @@ describe("analysis dashboard rendering", () => {
     );
     expect(html).toContain("lg:items-start");
     expect(html).toContain("lg:divide-x");
-    expect(html).toContain("grid border-y border-zinc-200");
+    expect(html).toContain("grid border-b border-zinc-200");
     expect(html).toContain('id="topic-coverage-heading"');
+    expect(html).toContain("dashboard-panel !pt-1 pb-5 sm:pb-6 lg:pr-8");
     expect(html).toContain("Deadlock Prevention");
     expect(html).toContain("80.0%");
     expect(html).toContain("Memory Segmentation");
@@ -270,6 +285,9 @@ describe("analysis dashboard rendering", () => {
       /aria-selected="true"[^>]*id="dashboard-tab-sources"/,
     );
     expect(html).toContain('id="dashboard-panel-sources"');
+    expect(html).toContain(
+      "dashboard-panel border-b border-zinc-200 !pt-1 pb-5 sm:pb-6",
+    );
     expect(html).not.toContain("Analysis Metadata");
     expect(html).not.toContain("Video filename");
     expect(html).not.toContain("PDF filename");

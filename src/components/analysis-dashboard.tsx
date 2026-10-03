@@ -109,7 +109,10 @@ export function AnalysisDashboard({
         <h2 className="sr-only" id="key-metrics-heading">
           Key analysis metrics
         </h2>
-        <div className="grid border-y border-zinc-200 sm:grid-cols-2 lg:grid-cols-4">
+        <div
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+          data-primary-metrics
+        >
           <Metric
             label="Overall Match"
             value={percentage(dashboard.overallSimilarityPercentage)}
@@ -126,49 +129,54 @@ export function AnalysisDashboard({
         </div>
       </section>
 
-      <DashboardTabNavigation
-        selectedTab={selectedTab}
-        onSelect={setSelectedTab}
-      />
+      <div
+        className="flex flex-col gap-2 sm:gap-3"
+        data-dashboard-tabs
+      >
+        <DashboardTabNavigation
+          selectedTab={selectedTab}
+          onSelect={setSelectedTab}
+        />
 
-      {selectedTab === "overview" ? (
-        <div
-          aria-labelledby="dashboard-tab-overview"
-          id="dashboard-panel-overview"
-          role="tabpanel"
-          tabIndex={0}
-        >
-          <OverviewTab dashboard={dashboard} />
-        </div>
-      ) : null}
+        {selectedTab === "overview" ? (
+          <div
+            aria-labelledby="dashboard-tab-overview"
+            id="dashboard-panel-overview"
+            role="tabpanel"
+            tabIndex={0}
+          >
+            <OverviewTab dashboard={dashboard} />
+          </div>
+        ) : null}
 
-      {selectedTab === "topics" ? (
-        <div
-          aria-labelledby="dashboard-tab-topics"
-          className="grid border-y border-zinc-200 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)] lg:items-start lg:divide-x lg:divide-zinc-200"
-          id="dashboard-panel-topics"
-          role="tabpanel"
-          tabIndex={0}
-        >
-          <TopicCoverage topics={dashboard.topicRows} />
-          <ExtractedTopicsSwitcher
-            initialExpandedSources={initialExpandedExtractedTopicSources}
-            initialSource={initialExtractedTopicSource}
-            topics={extractedTopics}
-          />
-        </div>
-      ) : null}
+        {selectedTab === "topics" ? (
+          <div
+            aria-labelledby="dashboard-tab-topics"
+            className="grid border-b border-zinc-200 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)] lg:items-start lg:divide-x lg:divide-zinc-200"
+            id="dashboard-panel-topics"
+            role="tabpanel"
+            tabIndex={0}
+          >
+            <TopicCoverage topics={dashboard.topicRows} />
+            <ExtractedTopicsSwitcher
+              initialExpandedSources={initialExpandedExtractedTopicSources}
+              initialSource={initialExtractedTopicSource}
+              topics={extractedTopics}
+            />
+          </div>
+        ) : null}
 
-      {selectedTab === "sources" ? (
-        <div
-          aria-labelledby="dashboard-tab-sources"
-          id="dashboard-panel-sources"
-          role="tabpanel"
-          tabIndex={0}
-        >
-          <SourceDetailsTab details={sourceDetails} />
-        </div>
-      ) : null}
+        {selectedTab === "sources" ? (
+          <div
+            aria-labelledby="dashboard-tab-sources"
+            id="dashboard-panel-sources"
+            role="tabpanel"
+            tabIndex={0}
+          >
+            <SourceDetailsTab details={sourceDetails} />
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -211,7 +219,7 @@ function DashboardTabNavigation({
             <button
               aria-controls={`dashboard-panel-${tab.id}`}
               aria-selected={selected}
-              className={`relative min-h-11 px-3 py-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zinc-950 ${
+              className={`relative min-h-11 px-3 py-2.5 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zinc-950 ${
                 selected
                   ? "text-zinc-950 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:bg-zinc-950"
                   : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-950"
@@ -247,7 +255,7 @@ function OverviewTab({ dashboard }: { dashboard: AnalysisDashboardData }) {
       <div className="grid border-b border-zinc-200 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] xl:divide-x xl:divide-zinc-200">
         <section
           aria-labelledby="alignment-heading"
-          className="dashboard-panel py-5 sm:py-6 xl:pr-8"
+          className="dashboard-panel !pt-1 pb-5 sm:pb-6 xl:pr-8"
         >
           <h2
             className="text-base font-semibold text-zinc-950"
@@ -284,7 +292,7 @@ function OverviewTab({ dashboard }: { dashboard: AnalysisDashboardData }) {
 
         <section
           aria-labelledby="match-distribution-heading"
-          className="dashboard-panel border-t border-zinc-200 py-5 sm:py-6 xl:border-t-0 xl:pl-8"
+          className="dashboard-panel border-t border-zinc-200 py-5 sm:py-6 xl:border-t-0 xl:!pt-1 xl:pl-8"
         >
           <h2
             className="text-base font-semibold text-zinc-950"
@@ -363,11 +371,11 @@ function Metric({
 }) {
   return (
     <div
-      className="px-2 py-4 sm:px-4 sm:py-5"
+      className="flex min-h-20 flex-col justify-between rounded-lg border border-zinc-200 bg-white px-4 py-3.5"
       data-primary-metric
     >
       <p className="text-xs font-medium text-zinc-500 sm:text-sm">{label}</p>
-      <p className="mt-1.5 text-2xl font-semibold tracking-tight text-zinc-950 sm:text-3xl">
+      <p className="mt-2 text-2xl font-semibold leading-none tracking-tight text-zinc-950">
         {value}
       </p>
     </div>
@@ -378,7 +386,7 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
   return (
     <section
       aria-labelledby="topic-coverage-heading"
-      className="dashboard-panel py-5 sm:py-6 lg:pr-8"
+      className="dashboard-panel !pt-1 pb-5 sm:pb-6 lg:pr-8"
     >
       <h2
         className="text-xl font-semibold tracking-tight text-zinc-950"
@@ -476,7 +484,7 @@ function ExtractedTopicsSwitcher({
   return (
     <section
       aria-labelledby="extracted-topics-heading"
-      className="dashboard-panel border-t border-zinc-200 py-5 sm:py-6 lg:border-t-0 lg:pl-8"
+      className="dashboard-panel border-t border-zinc-200 py-5 sm:py-6 lg:border-t-0 lg:!pt-1 lg:pl-8"
     >
       <h2
         className="text-xl font-medium tracking-tight text-zinc-800"
@@ -584,7 +592,7 @@ function SourceDetailsTab({ details }: { details: DashboardSourceDetails }) {
     <div>
       <section
         aria-labelledby="source-text-heading"
-        className="dashboard-panel border-y border-zinc-200 py-5 sm:py-6"
+        className="dashboard-panel border-b border-zinc-200 !pt-1 pb-5 sm:pb-6"
       >
         <h2
           className="text-xl font-semibold text-zinc-950"
