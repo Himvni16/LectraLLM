@@ -131,9 +131,9 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain(
       'class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-primary-metrics="true"',
     );
-    expect(html.match(/rounded-lg border border-zinc-200 bg-white/g)).toHaveLength(
-      4,
-    );
+    expect(
+      html.match(/rounded-lg border border-zinc-200 bg-transparent/g),
+    ).toHaveLength(4);
     expect(html).not.toContain(
       'class="grid border-y border-zinc-200 sm:grid-cols-2 lg:grid-cols-4"',
     );

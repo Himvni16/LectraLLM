@@ -371,7 +371,7 @@ function Metric({
 }) {
   return (
     <div
-      className="flex min-h-20 flex-col justify-between rounded-lg border border-zinc-200 bg-white px-4 py-3.5"
+      className="flex min-h-20 flex-col justify-between rounded-lg border border-zinc-200 bg-transparent px-4 py-3.5"
       data-primary-metric
     >
       <p className="text-xs font-medium text-zinc-500 sm:text-sm">{label}</p>

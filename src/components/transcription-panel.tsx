@@ -138,7 +138,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
                 {analysis.pdfFileName}
               </p>
             </div>
-            <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-800">
+            <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-zinc-300 bg-transparent px-3 py-1.5 text-sm font-semibold text-zinc-800">
               <span aria-hidden="true" className="size-2 rounded-full bg-zinc-950" />
               Analysis complete
             </span>

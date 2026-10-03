@@ -148,23 +148,50 @@ function FileField({
   label,
   onChange,
 }: FileFieldProps) {
+  const descriptionId = `${id}-description`;
+  const labelId = `${id}-label`;
+
   return (
-    <div className="min-w-0 py-6 md:py-8 md:first:pr-6 md:last:pl-6">
-      <label className="block text-sm font-semibold text-zinc-900" htmlFor={id}>
+    <div className="min-w-0 py-5 md:py-6 md:first:pr-6 md:last:pl-6">
+      <p className="text-sm font-semibold text-zinc-900" id={labelId}>
         {label}
-      </label>
-      <p className="mt-1 text-sm text-zinc-500">{description}</p>
+      </p>
+      <p className="mt-1 text-sm text-zinc-500" id={descriptionId}>
+        {description}
+      </p>
       <input
         accept={accept}
-        className="mt-4 block w-full min-w-0 rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-700 file:mr-3 file:rounded-full file:border-0 file:bg-black file:px-3 file:py-2 file:font-medium file:text-white hover:file:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black sm:file:mr-4 sm:file:px-4"
+        aria-describedby={descriptionId}
+        aria-labelledby={labelId}
+        className="peer sr-only"
         id={id}
         name={id}
         onChange={(event) => onChange(event.target.files?.[0] ?? null)}
         type="file"
       />
-      <p className="mt-2 break-all text-sm text-zinc-700">
-        {file ? file.name : "No file selected"}
-      </p>
+      <label
+        className={`group mt-3 flex min-h-16 cursor-pointer items-center justify-between gap-4 rounded-lg border px-4 py-3 transition peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-black ${
+          file
+            ? "border-zinc-300 bg-zinc-100 hover:border-zinc-400"
+            : "border-zinc-300 bg-transparent hover:border-zinc-500"
+        }`}
+        htmlFor={id}
+      >
+        <span className="min-w-0">
+          <span className="block text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
+            {file ? "Selected file" : "Select file"}
+          </span>
+          <span className="mt-1 block truncate text-sm font-medium text-black">
+            {file ? file.name : "Choose from your device"}
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className="inline-flex min-h-9 shrink-0 items-center rounded-full bg-black px-4 text-sm font-medium text-white transition group-hover:bg-zinc-700"
+        >
+          Browse
+        </span>
+      </label>
     </div>
   );
 }
