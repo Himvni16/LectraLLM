@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
+import { Button, FilePicker } from "@/components/ui";
 import type { UploadLimits } from "@/lib/env";
 import type { UploadSuccessResponse } from "@/lib/uploads/types";
 import {
@@ -81,13 +82,13 @@ export function UploadForm({ limits }: UploadFormProps) {
   }
 
   return (
-    <div className="upload-workspace mt-10 max-w-3xl min-w-0 sm:mt-12">
+    <div className="upload-workspace mt-12 max-w-3xl min-w-0">
       <form
         className="min-w-0 border-t border-zinc-200"
         onSubmit={handleSubmit}
       >
         <div className="grid divide-y divide-zinc-200 border-b border-zinc-200 md:grid-cols-2 md:divide-x md:divide-y-0">
-          <FileField
+          <FilePicker
             accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
             description={`MP4, MOV, or WebM · up to ${limits.videoMaxSizeMb} MB`}
             file={video}
@@ -96,7 +97,7 @@ export function UploadForm({ limits }: UploadFormProps) {
             onChange={setVideo}
           />
 
-          <FileField
+          <FilePicker
             accept=".pdf,application/pdf"
             description={`PDF only · up to ${limits.pdfMaxSizeMb} MB`}
             file={pdf}
@@ -108,90 +109,29 @@ export function UploadForm({ limits }: UploadFormProps) {
 
         {error ? (
           <p
-            className="mt-5 rounded-lg border border-zinc-400 bg-zinc-100 px-4 py-3 text-sm text-zinc-900 sm:mt-6"
+            className="mt-6 rounded-lg border border-zinc-400 bg-zinc-100 px-4 py-3 text-sm text-zinc-900"
             role="alert"
           >
             {error}
           </p>
         ) : null}
 
-        <button
-          className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-black px-6 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-600 sm:mt-6 sm:w-auto"
+        <Button
+          className="mt-6 w-full sm:w-auto"
           disabled={isSubmitting || !video || !pdf}
           type="submit"
         >
           {isSubmitting ? "Uploading & preparing…" : "Upload & Analyze"}
-        </button>
+        </Button>
       </form>
 
-      <p aria-live="polite" className="mt-4 max-w-2xl text-xs leading-5 text-zinc-500">
+      <p
+        aria-live="polite"
+        className="mt-4 max-w-2xl text-xs leading-5 text-zinc-500"
+      >
         Both files are validated before the analysis opens. Transcription,
         extraction, and comparison then run automatically.
       </p>
-    </div>
-  );
-}
-interface FileFieldProps {
-  accept: string;
-  description: string;
-  file: File | null;
-  id: string;
-  label: string;
-  onChange: (file: File | null) => void;
-}
-
-function FileField({
-  accept,
-  description,
-  file,
-  id,
-  label,
-  onChange,
-}: FileFieldProps) {
-  const descriptionId = `${id}-description`;
-  const labelId = `${id}-label`;
-
-  return (
-    <div className="min-w-0 py-5 md:py-6 md:first:pr-6 md:last:pl-6">
-      <p className="text-sm font-semibold text-zinc-900" id={labelId}>
-        {label}
-      </p>
-      <p className="mt-1 text-sm text-zinc-500" id={descriptionId}>
-        {description}
-      </p>
-      <input
-        accept={accept}
-        aria-describedby={descriptionId}
-        aria-labelledby={labelId}
-        className="peer sr-only"
-        id={id}
-        name={id}
-        onChange={(event) => onChange(event.target.files?.[0] ?? null)}
-        type="file"
-      />
-      <label
-        className={`group mt-3 flex min-h-16 cursor-pointer items-center justify-between gap-4 rounded-lg border px-4 py-3 transition peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-black ${
-          file
-            ? "border-zinc-300 bg-zinc-100 hover:border-zinc-400"
-            : "border-zinc-300 bg-transparent hover:border-zinc-500"
-        }`}
-        htmlFor={id}
-      >
-        <span className="min-w-0">
-          <span className="block text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
-            {file ? "Selected file" : "Select file"}
-          </span>
-          <span className="mt-1 block truncate text-sm font-medium text-black">
-            {file ? file.name : "Choose from your device"}
-          </span>
-        </span>
-        <span
-          aria-hidden="true"
-          className="inline-flex min-h-9 shrink-0 items-center rounded-full bg-black px-4 text-sm font-medium text-white transition group-hover:bg-zinc-700"
-        >
-          Browse
-        </span>
-      </label>
     </div>
   );
 }

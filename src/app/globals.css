@@ -1,21 +1,44 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbfaf6;
-  --foreground: #000000;
-  --line: #e8e8e8;
-  --muted: #616161;
-  --color-zinc-50: #fbfaf6;
-  --color-zinc-100: #f3f2ed;
-  --color-zinc-200: #e8e8e8;
-  --color-zinc-300: #c2c2c2;
-  --color-zinc-400: #8a8a8a;
-  --color-zinc-500: #8a8a8a;
-  --color-zinc-600: #616161;
-  --color-zinc-700: #616161;
-  --color-zinc-800: #000000;
-  --color-zinc-900: #000000;
-  --color-zinc-950: #000000;
+  --gray-canvas: #fbfaf6;
+  --gray-surface: #f3f2ed;
+  --gray-line: #e8e8e8;
+  --gray-line-strong: #c2c2c2;
+  --gray-muted: #8a8a8a;
+  --gray-body: #616161;
+  --gray-ink: #000000;
+  --glass-fallback: rgb(251 250 246 / 90%);
+  --glass-surface: rgb(251 250 246 / 72%);
+  --background: var(--gray-canvas);
+  --foreground: var(--gray-ink);
+  --line: var(--gray-line);
+  --muted: var(--gray-body);
+  --color-zinc-50: var(--gray-canvas);
+  --color-zinc-100: var(--gray-surface);
+  --color-zinc-200: var(--gray-line);
+  --color-zinc-300: var(--gray-line-strong);
+  --color-zinc-400: var(--gray-muted);
+  --color-zinc-500: var(--gray-muted);
+  --color-zinc-600: var(--gray-body);
+  --color-zinc-700: var(--gray-body);
+  --color-zinc-800: var(--gray-ink);
+  --color-zinc-900: var(--gray-ink);
+  --color-zinc-950: var(--gray-ink);
+  --container-max: 73.75rem;
+  --radius-card: 0.5rem;
+  --radius-pill: 999px;
+  --control-primary: 3rem;
+  --control-compact: 2.5rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
 }
 
 * {
@@ -47,8 +70,19 @@ body {
 }
 
 ::selection {
-  background: #27272a;
-  color: #ffffff;
+  background: var(--gray-ink);
+  color: var(--gray-canvas);
+}
+
+.glass-header {
+  background: var(--glass-fallback);
+  backdrop-filter: blur(24px) saturate(1.5);
+}
+
+@supports (backdrop-filter: blur(1px)) {
+  .glass-header {
+    background: var(--glass-surface);
+  }
 }
 
 .page-shell {
@@ -65,21 +99,21 @@ body {
   }
 
   .home-shell {
-    padding-block: 4.5rem;
+    padding-block: 4rem;
   }
 }
 
 @media (min-width: 1024px) and (max-height: 800px) {
   .page-shell {
-    padding-block: 2.5rem;
+    padding-block: 2rem;
   }
 
   .home-shell {
-    padding-block: 3.5rem;
+    padding-block: 3rem;
   }
 
   .home-workflow {
-    margin-top: 3.5rem;
+    margin-top: 3rem;
   }
 
   .dashboard-stack {
@@ -87,7 +121,7 @@ body {
   }
 
   .dashboard-panel {
-    padding-block: 1.25rem;
+    padding-block: 1.5rem;
   }
 
   .dashboard-chart {

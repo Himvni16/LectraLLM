@@ -4,6 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AnalysisDashboard } from "@/components/analysis-dashboard";
 import {
+  Button,
+  EmptyState,
+  PageHeader,
+  StatusBadge,
+} from "@/components/ui";
+import {
   getAnalysisStatusLabel,
   isTerminalAnalysisStatus,
   shouldPollAnalysis,
@@ -122,28 +128,19 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
 
   if (completed) {
     return (
-      <div className="analysis-shell space-y-5 sm:space-y-6 lg:space-y-8">
-        <header>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
-            Completed analysis
-          </p>
-          <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
-              <h1 className="text-5xl font-semibold tracking-[-0.045em] text-black sm:text-6xl">
-                Lecture Analysis
-              </h1>
-              <p className="mt-4 break-words text-base font-medium leading-7 text-zinc-700 sm:text-lg">
+      <div className="analysis-shell space-y-8">
+        <PageHeader
+          aside={<StatusBadge>Analysis complete</StatusBadge>}
+          eyebrow="Completed analysis"
+          meta={
+            <>
                 {analysis.videoFileName}
                 <span className="mx-2 font-normal text-zinc-400">vs</span>
                 {analysis.pdfFileName}
-              </p>
-            </div>
-            <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-zinc-300 bg-transparent px-3 py-1.5 text-sm font-semibold text-zinc-800">
-              <span aria-hidden="true" className="size-2 rounded-full bg-zinc-950" />
-              Analysis complete
-            </span>
-          </div>
-        </header>
+            </>
+          }
+          title="Lecture Analysis"
+        />
 
         <AnalysisDashboard
           extractedTopics={analysis.topics}
@@ -162,21 +159,14 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
 
   return (
     <div className="analysis-shell">
-      <header>
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
-          Analysis
-        </p>
-        <h1 className="mt-6 text-5xl font-semibold tracking-[-0.045em] text-black sm:text-6xl">
-          Lecture analysis
-        </h1>
-        <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg sm:leading-8">
-          LectraLLM processes the lecture and PDF automatically, then shows the
-          completed coverage dashboard here.
-        </p>
-      </header>
+      <PageHeader
+        description="LectraLLM processes the lecture and PDF automatically, then shows the completed coverage dashboard here."
+        eyebrow="Analysis"
+        title="Lecture Analysis"
+      />
 
       <div className="analysis-section-gap mt-8 grid min-w-0 border-y border-zinc-200 lg:grid-cols-[minmax(0,1fr)_20rem] lg:divide-x lg:divide-zinc-200">
-        <section className="py-5 sm:py-6 lg:pr-8">
+        <section className="py-6 lg:pr-8">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
             {failed ? "Needs attention" : "In progress"}
           </p>
@@ -191,19 +181,19 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
           <ProgressSteps analysis={analysis} />
 
           {failed ? (
-            <button
-              className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-black px-6 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-wait disabled:bg-zinc-300 disabled:text-zinc-600"
+            <Button
+              className="mt-6 w-full disabled:cursor-wait"
               disabled={isPipelineRequestActive}
               onClick={() => void startPipeline()}
               type="button"
             >
               {isPipelineRequestActive ? "Retrying analysis…" : "Retry Analysis"}
-            </button>
-            ) : null}
+            </Button>
+          ) : null}
 
           {error && !failed ? (
             <p
-              className="mt-5 border-l-2 border-zinc-950 bg-zinc-100 px-4 py-3 text-sm text-zinc-900"
+              className="mt-6 border-l-2 border-zinc-950 bg-zinc-100 px-4 py-3 text-sm text-zinc-900"
               role="alert"
             >
               {error}
@@ -211,7 +201,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
           ) : null}
         </section>
 
-        <aside className="border-t border-zinc-200 py-5 sm:py-6 lg:border-t-0 lg:pl-8">
+        <aside className="border-t border-zinc-200 py-6 lg:border-t-0 lg:pl-8">
           <h2 className="text-sm font-semibold text-zinc-950">Sources</h2>
           <dl className="mt-4 space-y-4 text-sm">
             <AnalysisDetail label="Video" value={analysis.videoFileName} />
@@ -270,7 +260,7 @@ function ProgressSteps({ analysis }: { analysis: AnalysisView }) {
       : (statusStep[analysis.status] ?? -1);
 
   return (
-    <ol className="mt-4 space-y-2.5 sm:mt-5" aria-label="Analysis progress">
+    <ol className="mt-4 space-y-3" aria-label="Analysis progress">
       {labels.map((label, index) => {
         const isComplete = completedSteps[index];
         const isActive = index === activeStep;
@@ -282,9 +272,9 @@ function ProgressSteps({ analysis }: { analysis: AnalysisView }) {
                   ? "border-zinc-950 bg-zinc-950 text-white"
                   : isActive
                     ? analysis.status === "FAILED"
-                      ? "border-zinc-950 bg-white text-zinc-950"
+                      ? "border-zinc-950 bg-transparent text-zinc-950"
                       : "border-zinc-700 bg-zinc-100 text-zinc-900"
-                    : "border-zinc-300 bg-white text-zinc-400"
+                    : "border-zinc-300 bg-transparent text-zinc-400"
               }`}
               aria-hidden="true"
             >
@@ -316,7 +306,7 @@ function TopicPanel({
   topics: AnalysisTopicView[];
 }) {
   return (
-    <section className="border-y border-zinc-200 py-5 sm:py-6">
+    <section className="border-y border-zinc-200 py-6">
       <h2 className="text-sm font-semibold text-zinc-950">
         {label}
       </h2>
@@ -344,9 +334,7 @@ function TopicPanel({
           ))}
         </ul>
       ) : (
-        <div className="mt-4 bg-zinc-50 p-4 text-sm leading-6 text-zinc-600">
-          {emptyMessage}
-        </div>
+        <EmptyState className="mt-4">{emptyMessage}</EmptyState>
       )}
     </section>
   );

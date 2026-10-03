@@ -132,7 +132,9 @@ describe("analysis dashboard rendering", () => {
       'class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-primary-metrics="true"',
     );
     expect(
-      html.match(/rounded-lg border border-zinc-200 bg-transparent/g),
+      html.match(
+        /rounded-\[var\(--radius-card\)\] border border-zinc-200 bg-transparent/g,
+      ),
     ).toHaveLength(4);
     expect(html).not.toContain(
       'class="grid border-y border-zinc-200 sm:grid-cols-2 lg:grid-cols-4"',
@@ -155,8 +157,10 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain(
       'class="flex flex-col gap-2 sm:gap-3" data-dashboard-tabs="true"',
     );
-    expect(html).toContain("relative min-h-11 px-3 py-2.5 text-sm");
-    expect(html).toContain("dashboard-panel !pt-1 pb-5 sm:pb-6 xl:pr-8");
+    expect(html).toContain(
+      "relative h-[var(--control-compact)] px-3 text-sm font-medium",
+    );
+    expect(html).toContain("dashboard-panel !pt-1 pb-6 xl:pr-8");
     expect(html).toMatch(
       /aria-selected="true"[^>]*id="dashboard-tab-overview"/,
     );
@@ -195,7 +199,7 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain("lg:divide-x");
     expect(html).toContain("grid border-b border-zinc-200");
     expect(html).toContain('id="topic-coverage-heading"');
-    expect(html).toContain("dashboard-panel !pt-1 pb-5 sm:pb-6 lg:pr-8");
+    expect(html).toContain("dashboard-panel !pt-1 pb-6 lg:pr-8");
     expect(html).toContain("Deadlock Prevention");
     expect(html).toContain("80.0%");
     expect(html).toContain("Memory Segmentation");
@@ -286,7 +290,7 @@ describe("analysis dashboard rendering", () => {
     );
     expect(html).toContain('id="dashboard-panel-sources"');
     expect(html).toContain(
-      "dashboard-panel border-b border-zinc-200 !pt-1 pb-5 sm:pb-6",
+      "dashboard-panel border-b border-zinc-200 !pt-1 pb-6",
     );
     expect(html).not.toContain("Analysis Metadata");
     expect(html).not.toContain("Video filename");

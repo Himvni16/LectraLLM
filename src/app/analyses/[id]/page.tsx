@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { TranscriptionPanel } from "@/components/transcription-panel";
+import { PageShell } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 import { withPrismaRetry } from "@/lib/prisma-retry";
 
@@ -57,7 +58,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
   }
 
   return (
-    <main className="page-shell mx-auto max-w-[70rem] px-4 sm:px-6 lg:px-8">
+    <PageShell>
       <section>
         <TranscriptionPanel
           initialAnalysis={{
@@ -87,6 +88,6 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
           }}
         />
       </section>
-    </main>
+    </PageShell>
   );
 }
