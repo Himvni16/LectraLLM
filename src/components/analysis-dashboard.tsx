@@ -4,7 +4,6 @@ import { useState, type KeyboardEvent } from "react";
 import {
   Bar,
   BarChart,
-  CartesianGrid,
   Cell,
   LabelList,
   ResponsiveContainer,
@@ -106,7 +105,7 @@ export function AnalysisDashboard({
         <h2 className="sr-only" id="key-metrics-heading">
           Key analysis metrics
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid border-y border-zinc-200 sm:grid-cols-2 lg:grid-cols-4">
           <Metric
             label="Overall Match"
             value={percentage(dashboard.overallSimilarityPercentage)}
@@ -121,7 +120,7 @@ export function AnalysisDashboard({
           />
           <Metric label="Missing Topics" value={dashboard.counts.MISSING} />
         </div>
-        <div className="mt-4 flex flex-col gap-1 px-1 text-sm text-zinc-600 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-3 flex flex-col gap-1 px-1 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
           <p>{matchSummary}</p>
           <p>
             {dashboard.totalPdfTopics} PDF{" "}
@@ -205,7 +204,7 @@ function DashboardTabNavigation({
     <div className="overflow-x-auto border-b border-zinc-200">
       <div
         aria-label="Analysis dashboard sections"
-        className="flex min-w-max gap-1"
+        className="flex min-w-max gap-2"
         role="tablist"
       >
         {DASHBOARD_TABS.map((tab) => {
@@ -214,10 +213,10 @@ function DashboardTabNavigation({
             <button
               aria-controls={`dashboard-panel-${tab.id}`}
               aria-selected={selected}
-              className={`relative min-h-11 rounded-t-lg px-4 py-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zinc-950 ${
+              className={`relative min-h-11 px-3 py-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zinc-950 ${
                 selected
-                  ? "bg-white text-zinc-950 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-zinc-950"
-                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+                  ? "text-zinc-950 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:bg-zinc-950"
+                  : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-950"
               }`}
               id={`dashboard-tab-${tab.id}`}
               key={tab.id}
@@ -254,21 +253,18 @@ function OverviewTab({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
+      <div className="grid border-b border-zinc-200 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] xl:divide-x xl:divide-zinc-200">
         <section
           aria-labelledby="alignment-heading"
-          className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
+          className="py-6 sm:py-7 xl:pr-8"
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600 sm:text-sm">
-            Results overview
-          </p>
           <h2
-            className="mt-2 text-xl font-semibold text-zinc-950"
+            className="text-base font-semibold text-zinc-950"
             id="alignment-heading"
           >
             Lecture–PDF Alignment
           </h2>
-          <p className="mt-6 text-4xl font-semibold tracking-tight text-zinc-950">
+          <p className="mt-5 text-3xl font-semibold tracking-[-0.03em] text-zinc-950 sm:text-4xl">
             {percentage(dashboard.overallSimilarityPercentage)}
           </p>
           <div
@@ -276,7 +272,7 @@ function OverviewTab({
             aria-valuemax={100}
             aria-valuemin={0}
             aria-valuenow={dashboard.overallSimilarityPercentage}
-            className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-200"
+            className="mt-4 h-1.5 overflow-hidden rounded-full bg-zinc-200"
             role="progressbar"
           >
             <div
@@ -284,7 +280,7 @@ function OverviewTab({
               style={{ width: `${dashboard.overallSimilarityPercentage}%` }}
             />
           </div>
-          <p className="mt-5 text-sm leading-6 text-zinc-700">
+          <p className="mt-4 text-sm leading-6 text-zinc-700">
             {alignmentSummary}
           </p>
           <p className="mt-1 text-sm text-zinc-500">{matchSummary}</p>
@@ -292,10 +288,10 @@ function OverviewTab({
 
         <section
           aria-labelledby="match-distribution-heading"
-          className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
+          className="border-t border-zinc-200 py-6 sm:py-7 xl:border-t-0 xl:pl-8"
         >
           <h2
-            className="text-xl font-semibold text-zinc-950"
+            className="text-base font-semibold text-zinc-950"
             id="match-distribution-heading"
           >
             Match Distribution
@@ -305,7 +301,7 @@ function OverviewTab({
           </p>
           <div
             aria-label={`Match distribution. ${distributionLabel}`}
-            className="mt-5 h-52 w-full"
+            className="mt-4 h-44 w-full"
             role="img"
           >
             <ResponsiveContainer height="100%" width="100%">
@@ -315,11 +311,6 @@ function OverviewTab({
                 layout="vertical"
                 margin={{ top: 4, right: 32, bottom: 4, left: 0 }}
               >
-                <CartesianGrid
-                  horizontal={false}
-                  stroke="#e4e4e7"
-                  strokeDasharray="3 3"
-                />
                 <XAxis allowDecimals={false} hide type="number" />
                 <YAxis
                   axisLine={false}
@@ -375,11 +366,11 @@ function Metric({
 }) {
   return (
     <div
-      className="rounded-2xl border border-zinc-200 bg-white p-5"
+      className="px-2 py-4 sm:px-4 sm:py-5"
       data-primary-metric
     >
-      <p className="text-sm font-medium text-zinc-600">{label}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">
+      <p className="text-xs font-medium text-zinc-500 sm:text-sm">{label}</p>
+      <p className="mt-1.5 text-2xl font-semibold tracking-tight text-zinc-950 sm:text-3xl">
         {value}
       </p>
     </div>
@@ -390,10 +381,10 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
   return (
     <section
       aria-labelledby="topic-coverage-heading"
-      className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
+      className="border-y border-zinc-200 py-6 sm:py-7"
     >
       <h2
-        className="text-2xl font-semibold tracking-tight text-zinc-950"
+        className="text-xl font-semibold tracking-tight text-zinc-950"
         id="topic-coverage-heading"
       >
         Topic Coverage
@@ -402,40 +393,47 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
         Stored similarity and match category for each PDF topic, in PDF order.
       </p>
       {topics.length > 0 ? (
-        <ul className="mt-6 divide-y divide-zinc-200 border-y border-zinc-200">
-          {topics.map((topic) => (
-            <li className="py-4" key={topic.pdfTopicId}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-                <p className="min-w-0 font-semibold text-zinc-950">
-                  {topic.pdfTopicName}
-                </p>
-                <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                  <span className="text-sm font-semibold tabular-nums text-zinc-700">
-                    {percentage(topic.similarityPercentage)}
-                  </span>
-                  <span
-                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${BADGE_STYLES[topic.matchType]}`}
-                  >
-                    {topic.matchType}
-                  </span>
+        <>
+          <div className="mt-6 hidden grid-cols-[minmax(0,1fr)_7rem_5rem] gap-4 border-y border-zinc-200 py-2.5 text-xs font-medium text-zinc-500 sm:grid">
+            <span>Topic</span>
+            <span>Match</span>
+            <span className="text-right">Score</span>
+          </div>
+          <ul className="divide-y divide-zinc-200 border-b border-zinc-200 sm:border-b-0">
+            {topics.map((topic) => (
+              <li className="py-3.5" key={topic.pdfTopicId}>
+                <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_7rem_5rem] sm:items-center sm:gap-4">
+                  <p className="min-w-0 font-semibold text-zinc-950">
+                    {topic.pdfTopicName}
+                  </p>
+                  <div className="flex items-center justify-between gap-3 sm:contents">
+                    <span
+                      className={`w-fit rounded-md border px-2 py-0.5 text-[11px] font-semibold ${BADGE_STYLES[topic.matchType]}`}
+                    >
+                      {topic.matchType}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums text-zinc-700">
+                      {percentage(topic.similarityPercentage)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div
-                aria-label={`${topic.pdfTopicName}: ${percentage(topic.similarityPercentage)} ${topic.matchType.toLowerCase()}`}
-                aria-valuemax={100}
-                aria-valuemin={0}
-                aria-valuenow={topic.similarityPercentage}
-                className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-200"
-                role="progressbar"
-              >
                 <div
-                  className={`h-full rounded-full ${PROGRESS_STYLES[topic.matchType]}`}
-                  style={{ width: `${topic.similarityPercentage}%` }}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
+                  aria-label={`${topic.pdfTopicName}: ${percentage(topic.similarityPercentage)} ${topic.matchType.toLowerCase()}`}
+                  aria-valuemax={100}
+                  aria-valuemin={0}
+                  aria-valuenow={topic.similarityPercentage}
+                  className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-zinc-200"
+                  role="progressbar"
+                >
+                  <div
+                    className={`h-full rounded-full ${PROGRESS_STYLES[topic.matchType]}`}
+                    style={{ width: `${topic.similarityPercentage}%` }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       ) : (
         <p className="mt-6 rounded-xl bg-zinc-50 p-5 text-sm text-zinc-600">
           No topic comparison results are available.
@@ -482,10 +480,10 @@ function ExtractedTopicsSwitcher({
   return (
     <section
       aria-labelledby="extracted-topics-heading"
-      className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
+      className="border-y border-zinc-200 py-6 sm:py-7"
     >
       <h2
-        className="text-2xl font-semibold tracking-tight text-zinc-950"
+        className="text-xl font-semibold tracking-tight text-zinc-950"
         id="extracted-topics-heading"
       >
         Extracted Topics
@@ -497,7 +495,7 @@ function ExtractedTopicsSwitcher({
       <div className="mt-5 overflow-x-auto">
         <div
           aria-label="Extracted topic source"
-          className="inline-flex min-w-max rounded-lg bg-zinc-100 p-1"
+          className="inline-flex min-w-max border-b border-zinc-200"
           role="tablist"
         >
           {EXTRACTED_TOPIC_TABS.map((tab) => {
@@ -506,10 +504,10 @@ function ExtractedTopicsSwitcher({
               <button
                 aria-controls="extracted-topics-panel"
                 aria-selected={selected}
-                className={`min-h-10 rounded-md px-3 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 ${
+                className={`relative min-h-10 px-3 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 ${
                   selected
-                    ? "bg-white text-zinc-950 shadow-sm"
-                    : "text-zinc-600 hover:text-zinc-950"
+                    ? "text-zinc-950 after:absolute after:inset-x-2 after:bottom-[-1px] after:h-px after:bg-zinc-950"
+                    : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-950"
                 }`}
                 id={`extracted-tab-${tab.id}`}
                 key={tab.id}
@@ -544,7 +542,7 @@ function ExtractedTopicsSwitcher({
           <ul className="mt-5 divide-y divide-zinc-200 border-y border-zinc-200">
             {visibleTopics.map((topic, index) => (
               <li
-                className="flex flex-col gap-1 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
                 key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
               >
                 <p className="min-w-0 font-medium text-zinc-900">
@@ -570,10 +568,10 @@ function ExtractedTopicsSwitcher({
 
 function SourceDetailsTab({ details }: { details: DashboardSourceDetails }) {
   return (
-    <div className="space-y-6">
+    <div>
       <section
         aria-labelledby="source-text-heading"
-        className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
+        className="border-y border-zinc-200 py-6 sm:py-7"
       >
         <h2
           className="text-xl font-semibold text-zinc-950"
@@ -597,7 +595,6 @@ function SourceDetailsTab({ details }: { details: DashboardSourceDetails }) {
           />
         </div>
       </section>
-
     </div>
   );
 }

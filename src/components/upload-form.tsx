@@ -81,12 +81,12 @@ export function UploadForm({ limits }: UploadFormProps) {
   }
 
   return (
-    <div className="mt-10 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
+    <div className="mt-10 max-w-4xl min-w-0">
       <form
-        className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8"
+        className="min-w-0 border-y border-zinc-200 py-6 sm:py-8"
         onSubmit={handleSubmit}
       >
-        <div className="space-y-7">
+        <div className="grid gap-7 md:grid-cols-2">
           <FileField
             accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
             description={`MP4, MOV, or WebM · up to ${limits.videoMaxSizeMb} MB`}
@@ -124,13 +124,10 @@ export function UploadForm({ limits }: UploadFormProps) {
         </button>
       </form>
 
-      <aside aria-live="polite">
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-100 p-5 text-sm leading-6 text-zinc-600 sm:p-6">
-          Both files are validated on the server. After upload, LectraLLM opens
-          the analysis page and automatically runs transcription, extraction,
-          and comparison.
-        </div>
-      </aside>
+      <p aria-live="polite" className="mt-4 max-w-2xl text-xs leading-5 text-zinc-500">
+        Both files are validated before the analysis opens. Transcription,
+        extraction, and comparison then run automatically.
+      </p>
     </div>
   );
 }

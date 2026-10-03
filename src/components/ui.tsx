@@ -130,7 +130,7 @@ export function EmptyState({
   icon?: IconName;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-5 text-sm leading-6 text-zinc-600">
+    <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-5 text-sm leading-6 text-zinc-600">
       <span className="mb-3 grid size-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-800">
         <Icon className="size-4" name={icon} />
       </span>

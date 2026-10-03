@@ -158,6 +158,8 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
     );
   }
 
+  const hasExtractedTopics = analysis.topics.length > 0;
+
   return (
     <div className="mt-8">
       <header>
@@ -173,20 +175,12 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
         </p>
       </header>
 
-      <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-8">
-      <aside className="h-fit rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
-        <dl className="space-y-5 text-sm">
-          <AnalysisDetail label="Video" value={analysis.videoFileName} />
-          <AnalysisDetail label="PDF" value={analysis.pdfFileName} />
-          <AnalysisDetail
-            label="Status"
-            value={getAnalysisStatusLabel(analysis.status)}
-          />
-          <AnalysisDetail label="Analysis ID" value={analysis.id} />
-        </dl>
-
-        <div className="mt-7 border-t border-zinc-200 pt-6">
-          <h2 className="text-lg font-semibold text-zinc-950">
+      <div className="mt-8 grid min-w-0 border-y border-zinc-200 lg:grid-cols-[minmax(0,1fr)_20rem] lg:divide-x lg:divide-zinc-200">
+        <section className="py-6 sm:py-7 lg:pr-8">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
+            {failed ? "Needs attention" : "In progress"}
+          </p>
+          <h2 className="mt-2 text-lg font-semibold text-zinc-950">
             {failed ? "Analysis paused" : "Analyzing your lecture"}
           </h2>
           <p className="mt-1 text-sm leading-6 text-zinc-600">
@@ -205,34 +199,29 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
             >
               {isPipelineRequestActive ? "Retrying analysis…" : "Retry Analysis"}
             </button>
+            ) : null}
+
+          {error && !failed ? (
+            <p
+              className="mt-5 border-l-2 border-zinc-950 bg-zinc-100 px-4 py-3 text-sm text-zinc-900"
+              role="alert"
+            >
+              {error}
+            </p>
           ) : null}
-        </div>
-
-        {error && !failed ? (
-          <p
-            className="mt-5 rounded-lg border border-zinc-400 bg-zinc-100 px-4 py-3 text-sm text-zinc-900"
-            role="alert"
-          >
-            {error}
-          </p>
-        ) : null}
-      </aside>
-
-      <div className="space-y-8">
-        <section className="rounded-2xl border border-zinc-200 bg-zinc-100 p-5 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 sm:text-sm">
-            In progress
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold text-zinc-950">
-            {getAnalysisStatusLabel(analysis.status)}
-          </h2>
-          <p className="mt-3 text-sm leading-6 text-zinc-600">
-            You can leave this page open while LectraLLM works through the
-            remaining steps.
-          </p>
         </section>
 
-          <div className="grid gap-8 xl:grid-cols-2">
+        <aside className="border-t border-zinc-200 py-6 sm:py-7 lg:border-t-0 lg:pl-8">
+          <h2 className="text-sm font-semibold text-zinc-950">Sources</h2>
+          <dl className="mt-4 space-y-4 text-sm">
+            <AnalysisDetail label="Video" value={analysis.videoFileName} />
+            <AnalysisDetail label="PDF" value={analysis.pdfFileName} />
+          </dl>
+        </aside>
+      </div>
+
+      {hasExtractedTopics ? (
+        <div className="mt-8 grid gap-8 xl:grid-cols-2">
           <TopicPanel
             emptyMessage="Lecture topics will appear after extraction."
             label="Lecture topics"
@@ -244,8 +233,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
             topics={analysis.topics.filter((topic) => topic.source === "PDF")}
           />
         </div>
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -328,15 +316,15 @@ function TopicPanel({
   topics: AnalysisTopicView[];
 }) {
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-8">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 sm:text-sm">
+    <section className="border-y border-zinc-200 py-5 sm:py-6">
+      <h2 className="text-sm font-semibold text-zinc-950">
         {label}
-      </p>
+      </h2>
       {topics.length > 0 ? (
-        <ul className="mt-5 space-y-3">
+        <ul className="mt-4 divide-y divide-zinc-200 border-y border-zinc-200">
           {topics.map((topic, index) => (
             <li
-              className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3"
+              className="py-3"
               key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
             >
               <div className="flex items-start justify-between gap-4">
@@ -347,8 +335,8 @@ function TopicPanel({
                   </p>
                 </div>
                 {topic.confidence !== null ? (
-                  <span className="shrink-0 rounded-full bg-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-800">
-                    {Math.round(topic.confidence * 100)}%
+                  <span className="shrink-0 text-xs font-medium text-zinc-600">
+                    Confidence {Math.round(topic.confidence * 100)}%
                   </span>
                 ) : null}
               </div>
@@ -356,7 +344,7 @@ function TopicPanel({
           ))}
         </ul>
       ) : (
-        <div className="mt-5 rounded-xl bg-zinc-50 p-5 text-sm leading-6 text-zinc-600">
+        <div className="mt-4 bg-zinc-50 p-4 text-sm leading-6 text-zinc-600">
           {emptyMessage}
         </div>
       )}

@@ -20,6 +20,9 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family:
+    Geist,
+    "Geist Fallback",
+    "Helvetica Neue",
     Arial,
     Helvetica,
     ui-sans-serif,
