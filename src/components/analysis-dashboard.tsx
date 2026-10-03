@@ -145,7 +145,7 @@ export function AnalysisDashboard({
       {selectedTab === "topics" ? (
         <div
           aria-labelledby="dashboard-tab-topics"
-          className="space-y-5 sm:space-y-6 lg:space-y-8"
+          className="grid gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)] lg:items-start lg:gap-0 lg:divide-x lg:divide-zinc-200"
           id="dashboard-panel-topics"
           role="tabpanel"
           tabIndex={0}
@@ -378,7 +378,7 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
   return (
     <section
       aria-labelledby="topic-coverage-heading"
-      className="dashboard-panel border-y border-zinc-200 py-5 sm:py-6"
+      className="dashboard-panel border-y border-zinc-200 py-5 sm:py-6 lg:pr-8"
     >
       <h2
         className="text-xl font-semibold tracking-tight text-zinc-950"
@@ -477,7 +477,7 @@ function ExtractedTopicsSwitcher({
   return (
     <section
       aria-labelledby="extracted-topics-heading"
-      className="dashboard-panel border-t border-zinc-200 py-3 sm:py-4"
+      className="dashboard-panel border-t border-zinc-200 py-3 sm:py-4 lg:border-t-0 lg:pl-8"
     >
       <h2
         className="text-base font-semibold text-zinc-900"

@@ -174,6 +174,11 @@ describe("analysis dashboard rendering", () => {
       /aria-selected="true"[^>]*id="dashboard-tab-topics"/,
     );
     expect(html).toContain('id="dashboard-panel-topics"');
+    expect(html).toContain(
+      "lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]",
+    );
+    expect(html).toContain("lg:items-start");
+    expect(html).toContain("lg:divide-x");
     expect(html).toContain('id="topic-coverage-heading"');
     expect(html).toContain("Deadlock Prevention");
     expect(html).toContain("80.0%");
