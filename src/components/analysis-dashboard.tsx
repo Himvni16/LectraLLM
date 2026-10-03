@@ -75,13 +75,6 @@ const BADGE_TONES: Readonly<Record<DashboardMatchType, StatusTone>> = {
   MISSING: "outline",
 };
 
-const PROGRESS_STYLES: Readonly<Record<DashboardMatchType, string>> = {
-  STRONG: "bg-zinc-950",
-  PARTIAL: "bg-zinc-700",
-  WEAK: "bg-zinc-400",
-  MISSING: "bg-zinc-600",
-};
-
 const CHART_COLORS: Readonly<Record<DashboardMatchType, string>> = {
   STRONG: "var(--gray-ink)",
   PARTIAL: "var(--gray-body)",
@@ -257,7 +250,7 @@ function OverviewTab({ dashboard }: { dashboard: AnalysisDashboardData }) {
           className="dashboard-panel !pt-1 pb-6 xl:pr-8"
         >
           <h2
-            className="text-center text-base font-semibold text-zinc-950"
+            className="text-center text-xl font-medium tracking-tight text-zinc-950"
             id="alignment-heading"
           >
             Lecture–PDF Alignment
@@ -286,7 +279,7 @@ function OverviewTab({ dashboard }: { dashboard: AnalysisDashboardData }) {
           className="dashboard-panel border-t border-zinc-200 py-6 xl:border-t-0 xl:!pt-1 xl:pl-8"
         >
           <h2
-            className="text-center text-base font-semibold text-zinc-950"
+            className="text-center text-xl font-medium tracking-tight text-zinc-950"
             id="match-distribution-heading"
           >
             Match Distribution
@@ -360,7 +353,7 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
       className="dashboard-panel !pt-1 pb-6 lg:pr-8"
     >
       <h2
-        className="text-xl font-medium tracking-tight text-zinc-950"
+        className="text-center text-xl font-medium tracking-tight text-zinc-950"
         id="topic-coverage-heading"
       >
         Topic Coverage
@@ -370,7 +363,7 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
           {topics.map((topic) => (
             <li className="py-3" key={topic.pdfTopicId}>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-3">
-                <p className="min-w-0 break-words font-medium text-zinc-950">
+                <p className="min-w-0 break-words font-semibold text-zinc-950">
                   {topic.pdfTopicName}
                 </p>
                 <div className="flex items-center justify-between gap-3 sm:contents">
@@ -386,12 +379,6 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
                   </span>
                 </div>
               </div>
-              <ProgressBar
-                className="mt-2 !h-1"
-                indicatorClassName={PROGRESS_STYLES[topic.matchType]}
-                label={`${topic.pdfTopicName}: ${percentage(topic.similarityPercentage)} ${topic.matchType.toLowerCase()}`}
-                value={topic.similarityPercentage}
-              />
             </li>
           ))}
         </ul>
@@ -453,7 +440,7 @@ function ExtractedTopicsSwitcher({
       className="dashboard-panel border-t border-zinc-200 py-6 lg:border-t-0 lg:!pt-1 lg:pl-8"
     >
       <h2
-        className="text-xl font-medium tracking-tight text-zinc-800"
+        className="text-center text-lg font-medium tracking-tight text-zinc-700"
         id="extracted-topics-heading"
       >
         Extracted Topics
@@ -492,7 +479,7 @@ function ExtractedTopicsSwitcher({
         tabIndex={0}
       >
         <div className="flex min-w-0 items-center justify-between gap-4">
-          <h3 className="min-w-0 text-sm font-semibold text-zinc-800">
+          <h3 className="min-w-0 text-sm font-medium text-zinc-700">
             {selectedLabel}
             <span className="font-normal text-zinc-500">
               {` · ${sourceTopics.length}`}
@@ -517,22 +504,17 @@ function ExtractedTopicsSwitcher({
         </div>
         {sourceTopics.length > 0 ? (
           <ul
-            className="mt-3 divide-y divide-zinc-100"
+            className="mt-3 space-y-3"
             id={`extracted-topic-list-${selectedSource}`}
           >
             {sourceTopics.map((topic, index) => (
               <li
-                className={`${!isExpanded && index >= 5 ? "hidden lg:flex" : "flex"} min-w-0 flex-col gap-1 py-3 text-sm sm:flex-row sm:items-start sm:justify-between sm:gap-4`}
+                className={`${!isExpanded && index >= 5 ? "hidden lg:block" : "block"} min-w-0 text-sm`}
                 key={topic.id ?? `${topic.source}-${topic.name}-${index}`}
               >
-                <p className="min-w-0 break-words font-medium text-zinc-800">
+                <p className="min-w-0 break-words leading-6 text-zinc-600">
                   {topic.name}
                 </p>
-                {topic.confidence !== null ? (
-                  <span className="shrink-0 tabular-nums text-zinc-500">
-                    Conf. {Math.round(topic.confidence * 100)}%
-                  </span>
-                ) : null}
               </li>
             ))}
           </ul>

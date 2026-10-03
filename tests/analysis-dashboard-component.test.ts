@@ -206,7 +206,10 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain("20.0%");
     expect(html).toContain(">STRONG</span>");
     expect(html).toContain(">MISSING</span>");
-    expect(html.match(/role="progressbar"/g)).toHaveLength(2);
+    expect(html).not.toContain('role="progressbar"');
+    expect(html).toContain(
+      'class="min-w-0 break-words font-semibold text-zinc-950"',
+    );
     expect(html).not.toContain(
       "Stored similarity and match category for each PDF topic, in PDF order.",
     );
@@ -218,7 +221,13 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain("· 1");
     expect(html).not.toContain("· 1 extracted");
     expect(html).toContain("Deadlocks");
-    expect(html).toContain("Conf. 95%");
+    expect(html).not.toContain("Conf.");
+    expect(html).toContain(
+      'class="mt-3 space-y-3" id="extracted-topic-list-VIDEO"',
+    );
+    expect(html).toContain(
+      'class="text-center text-lg font-medium tracking-tight text-zinc-700"',
+    );
     expect(html).not.toContain(
       "Topics identified from each source with extraction confidence.",
     );
@@ -233,11 +242,12 @@ describe("analysis dashboard rendering", () => {
     });
 
     expect(html).toMatch(/aria-selected="true"[^>]*id="extracted-tab-PDF"/);
+    expect(html).toMatch(/aria-selected="false"[^>]*id="extracted-tab-VIDEO"/);
     expect(html).toContain('aria-labelledby="extracted-tab-PDF"');
     expect(html).toContain("PDF Extraction Topic");
     expect(html).toContain("PDF Topics");
     expect(html).toContain("· 1");
-    expect(html).toContain("Conf. 90%");
+    expect(html).not.toContain("Conf.");
     expect(html).not.toContain("Deadlocks");
   });
 
@@ -254,14 +264,51 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain("Lecture topic 5");
     expect(html).toContain("Lecture topic 6");
     expect(html).toContain("Lecture topic 7");
-    expect(html.match(/hidden lg:flex/g)).toHaveLength(2);
+    expect(html.match(/hidden lg:block/g)).toHaveLength(2);
     expect(html).toContain("View all");
     expect(html).not.toContain("Show all");
     expect(html).toMatch(
       /class="[^"]*lg:hidden[^"]*"[^>]*>View all<\/button>/,
     );
     expect(html).toContain('aria-expanded="false"');
-    expect(html).toContain("Conf. 90%");
+    expect(html).not.toContain("Conf.");
+  });
+
+  it("keeps long coverage and extracted topic names readable", () => {
+    const longCoverageName =
+      "A Comprehensive Introduction to Distributed Learning Environments";
+    const longExtractedName =
+      "Designing Reliable Multimodal Validation Workflows for Large Course Libraries";
+    const html = renderDashboard({
+      extractedTopics: [
+        {
+          id: "video-long",
+          name: longExtractedName,
+          source: "VIDEO",
+          confidence: 0.87,
+        },
+      ],
+      initialTab: "topics",
+      matches: [
+        {
+          ...strongMatch,
+          pdfTopicId: "pdf-long",
+          pdfTopicName: longCoverageName,
+        },
+      ],
+    });
+
+    expect(html).toContain(longCoverageName);
+    expect(html).toContain(longExtractedName);
+    expect(html).toContain(
+      'class="min-w-0 break-words font-semibold text-zinc-950"',
+    );
+    expect(html).toContain(
+      'class="min-w-0 break-words leading-6 text-zinc-600"',
+    );
+    expect(html).toContain("80.0%");
+    expect(html).toContain(">STRONG</span>");
+    expect(html).not.toContain("Conf.");
   });
 
   it("renders all extracted topics and a collapse action when expanded", () => {
