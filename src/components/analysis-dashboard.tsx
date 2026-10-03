@@ -100,7 +100,10 @@ export function AnalysisDashboard({
   const matchSummary = `${dashboard.counts.STRONG} strong • ${dashboard.counts.PARTIAL} partial • ${dashboard.counts.WEAK} weak`;
 
   return (
-    <section aria-label="Analysis results" className="space-y-6">
+    <section
+      aria-label="Analysis results"
+      className="dashboard-stack flex flex-col gap-5 sm:gap-6 lg:gap-8"
+    >
       <section aria-labelledby="key-metrics-heading">
         <h2 className="sr-only" id="key-metrics-heading">
           Key analysis metrics
@@ -148,7 +151,7 @@ export function AnalysisDashboard({
       {selectedTab === "topics" ? (
         <div
           aria-labelledby="dashboard-tab-topics"
-          className="space-y-8"
+          className="space-y-5 sm:space-y-6 lg:space-y-8"
           id="dashboard-panel-topics"
           role="tabpanel"
           tabIndex={0}
@@ -252,11 +255,11 @@ function OverviewTab({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <div className="grid border-b border-zinc-200 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] xl:divide-x xl:divide-zinc-200">
         <section
           aria-labelledby="alignment-heading"
-          className="py-6 sm:py-7 xl:pr-8"
+          className="dashboard-panel py-5 sm:py-6 xl:pr-8"
         >
           <h2
             className="text-base font-semibold text-zinc-950"
@@ -288,7 +291,7 @@ function OverviewTab({
 
         <section
           aria-labelledby="match-distribution-heading"
-          className="border-t border-zinc-200 py-6 sm:py-7 xl:border-t-0 xl:pl-8"
+          className="dashboard-panel border-t border-zinc-200 py-5 sm:py-6 xl:border-t-0 xl:pl-8"
         >
           <h2
             className="text-base font-semibold text-zinc-950"
@@ -301,7 +304,7 @@ function OverviewTab({
           </p>
           <div
             aria-label={`Match distribution. ${distributionLabel}`}
-            className="mt-4 h-44 w-full"
+            className="dashboard-chart mt-4 h-44 w-full sm:h-48 lg:h-52"
             role="img"
           >
             <ResponsiveContainer height="100%" width="100%">
@@ -320,7 +323,18 @@ function OverviewTab({
                   type="category"
                   width={58}
                 />
-                <Tooltip cursor={{ fill: "#fafafa" }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "#ffffff",
+                    border: "1px solid #e4e4e7",
+                    borderRadius: 8,
+                    boxShadow: "none",
+                    fontSize: 12,
+                  }}
+                  cursor={{ fill: "#fafafa" }}
+                  itemStyle={{ color: "#18181b" }}
+                  labelStyle={{ color: "#52525b" }}
+                />
                 <Bar dataKey="count" name="PDF topics" radius={[0, 6, 6, 0]}>
                   {dashboard.distribution.map((item) => (
                     <Cell
@@ -381,7 +395,7 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
   return (
     <section
       aria-labelledby="topic-coverage-heading"
-      className="border-y border-zinc-200 py-6 sm:py-7"
+      className="dashboard-panel border-y border-zinc-200 py-5 sm:py-6"
     >
       <h2
         className="text-xl font-semibold tracking-tight text-zinc-950"
@@ -480,7 +494,7 @@ function ExtractedTopicsSwitcher({
   return (
     <section
       aria-labelledby="extracted-topics-heading"
-      className="border-y border-zinc-200 py-6 sm:py-7"
+      className="dashboard-panel border-y border-zinc-200 py-5 sm:py-6"
     >
       <h2
         className="text-xl font-semibold tracking-tight text-zinc-950"
@@ -571,7 +585,7 @@ function SourceDetailsTab({ details }: { details: DashboardSourceDetails }) {
     <div>
       <section
         aria-labelledby="source-text-heading"
-        className="border-y border-zinc-200 py-6 sm:py-7"
+        className="dashboard-panel border-y border-zinc-200 py-5 sm:py-6"
       >
         <h2
           className="text-xl font-semibold text-zinc-950"

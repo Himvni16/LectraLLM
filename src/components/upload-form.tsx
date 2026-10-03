@@ -81,12 +81,12 @@ export function UploadForm({ limits }: UploadFormProps) {
   }
 
   return (
-    <div className="mt-10 max-w-4xl min-w-0">
+    <div className="upload-workspace mt-8 max-w-4xl min-w-0 sm:mt-10">
       <form
         className="min-w-0 border-y border-zinc-200 py-6 sm:py-8"
         onSubmit={handleSubmit}
       >
-        <div className="grid gap-7 md:grid-cols-2">
+        <div className="grid gap-5 sm:gap-6 md:grid-cols-2">
           <FileField
             accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
             description={`MP4, MOV, or WebM · up to ${limits.videoMaxSizeMb} MB`}
@@ -108,7 +108,7 @@ export function UploadForm({ limits }: UploadFormProps) {
 
         {error ? (
           <p
-            className="mt-6 rounded-lg border border-zinc-400 bg-zinc-100 px-4 py-3 text-sm text-zinc-900"
+            className="mt-5 rounded-lg border border-zinc-400 bg-zinc-100 px-4 py-3 text-sm text-zinc-900 sm:mt-6"
             role="alert"
           >
             {error}
@@ -116,7 +116,7 @@ export function UploadForm({ limits }: UploadFormProps) {
         ) : null}
 
         <button
-          className="mt-7 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-600 sm:w-auto"
+          className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-600 sm:mt-6 sm:w-auto"
           disabled={isSubmitting || !video || !pdf}
           type="submit"
         >

@@ -14,8 +14,8 @@ export default function UploadPage() {
   const limits = getUploadLimits();
 
   return (
-    <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-10">
-      <section>
+    <main className="page-shell mx-auto max-w-6xl px-4 sm:px-6 lg:px-10">
+      <section className="mx-auto max-w-4xl">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
           New analysis
         </p>

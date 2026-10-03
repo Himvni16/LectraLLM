@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-6xl px-4 py-16 sm:px-6 sm:py-24 lg:px-10">
+    <main className="home-shell mx-auto max-w-6xl px-4 sm:px-6 lg:px-10">
       <section className="max-w-4xl">
         <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
           LectraLLM
@@ -27,7 +27,7 @@ export default function Home() {
 
       <section
         aria-label="How LectraLLM works"
-        className="mt-20 grid border-y border-zinc-200 sm:grid-cols-3"
+        className="home-workflow mt-12 grid border-y border-zinc-200 sm:mt-16 sm:grid-cols-3 lg:mt-20"
       >
         <WorkflowStep
           description="Select a lecture video and the PDF material it should cover."

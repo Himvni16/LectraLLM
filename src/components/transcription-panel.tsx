@@ -122,7 +122,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
 
   if (completed) {
     return (
-      <div className="mt-8 space-y-8">
+      <div className="analysis-shell space-y-5 sm:space-y-6 lg:space-y-8">
         <header>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-600 sm:text-sm">
             Completed analysis
@@ -161,7 +161,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
   const hasExtractedTopics = analysis.topics.length > 0;
 
   return (
-    <div className="mt-8">
+    <div className="analysis-shell">
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-600 sm:text-sm">
           Analysis
@@ -175,8 +175,8 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
         </p>
       </header>
 
-      <div className="mt-8 grid min-w-0 border-y border-zinc-200 lg:grid-cols-[minmax(0,1fr)_20rem] lg:divide-x lg:divide-zinc-200">
-        <section className="py-6 sm:py-7 lg:pr-8">
+      <div className="analysis-section-gap mt-6 grid min-w-0 border-y border-zinc-200 lg:mt-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:divide-x lg:divide-zinc-200">
+        <section className="py-5 sm:py-6 lg:pr-8">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
             {failed ? "Needs attention" : "In progress"}
           </p>
@@ -211,7 +211,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
           ) : null}
         </section>
 
-        <aside className="border-t border-zinc-200 py-6 sm:py-7 lg:border-t-0 lg:pl-8">
+        <aside className="border-t border-zinc-200 py-5 sm:py-6 lg:border-t-0 lg:pl-8">
           <h2 className="text-sm font-semibold text-zinc-950">Sources</h2>
           <dl className="mt-4 space-y-4 text-sm">
             <AnalysisDetail label="Video" value={analysis.videoFileName} />
@@ -221,7 +221,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
       </div>
 
       {hasExtractedTopics ? (
-        <div className="mt-8 grid gap-8 xl:grid-cols-2">
+        <div className="analysis-section-gap mt-6 grid gap-6 lg:mt-8 xl:grid-cols-2">
           <TopicPanel
             emptyMessage="Lecture topics will appear after extraction."
             label="Lecture topics"
@@ -270,7 +270,7 @@ function ProgressSteps({ analysis }: { analysis: AnalysisView }) {
       : (statusStep[analysis.status] ?? -1);
 
   return (
-    <ol className="mt-5 space-y-3" aria-label="Analysis progress">
+    <ol className="mt-4 space-y-2.5 sm:mt-5" aria-label="Analysis progress">
       {labels.map((label, index) => {
         const isComplete = completedSteps[index];
         const isActive = index === activeStep;

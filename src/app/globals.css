@@ -35,3 +35,73 @@ body {
   color: #ffffff;
 }
 
+.page-shell {
+  padding-block: 2rem;
+}
+
+.home-shell {
+  padding-block: 3rem;
+}
+
+@media (min-width: 640px) {
+  .page-shell {
+    padding-block: 3rem;
+  }
+
+  .home-shell {
+    padding-block: 4.5rem;
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 800px) {
+  .page-shell {
+    padding-block: 2.5rem;
+  }
+
+  .home-shell {
+    padding-block: 3.5rem;
+  }
+
+  .home-workflow {
+    margin-top: 3.5rem;
+  }
+
+  .dashboard-stack {
+    gap: 1.5rem;
+  }
+
+  .dashboard-panel {
+    padding-block: 1.25rem;
+  }
+
+  .dashboard-chart {
+    height: 10.5rem;
+  }
+
+  .analysis-section-gap {
+    margin-top: 1.5rem;
+  }
+
+  .upload-workspace {
+    margin-top: 2rem;
+  }
+
+  .upload-workspace > form {
+    padding-block: 1.5rem;
+  }
+}
+
+@media (min-width: 1440px) and (min-height: 900px) {
+  .page-shell {
+    padding-block: 4rem;
+  }
+
+  .home-shell {
+    padding-block: 6rem;
+  }
+
+  .dashboard-chart {
+    height: 13.5rem;
+  }
+}
+
