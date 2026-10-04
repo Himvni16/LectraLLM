@@ -14,8 +14,11 @@ const TEST_OPTIONS = {
   timeoutMs: 1_000,
 };
 
+const SHARED_TOPIC_NAMING_GUIDANCE =
+  "Preserve meaningful technical terminology and use concise, standalone topic names that state the actual subject or concept represented. Do not return generic section labels such as Introduction, Conclusion, Summary, Overview, Problem Statement, Project Objective, or Process / Workflow by themselves. When a section uses a generic label, name its substantive topic using only information present in the source text. Avoid duplicates and do not invent concepts.";
+
 describe("Gemini topic extraction client", () => {
-  it("sends a short VIDEO source once with the preserved structured prompt", async () => {
+  it("sends a short VIDEO source with source-specific and shared naming guidance", async () => {
     const generateContent = vi.fn(
       async (parameters: GenerateContentParameters) => {
         void parameters;
@@ -53,6 +56,9 @@ describe("Gemini topic extraction client", () => {
         automaticFunctionCalling: { disable: true },
       }),
     });
+    expect(
+      generateContent.mock.calls[0]?.[0].config?.systemInstruction,
+    ).toEqual(expect.stringContaining(SHARED_TOPIC_NAMING_GUIDANCE));
   });
 
   it("uses the PDF-specific instruction without changing the output contract", async () => {

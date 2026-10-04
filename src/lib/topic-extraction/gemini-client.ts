@@ -277,10 +277,13 @@ function topicInstructions(source: TopicSource): string {
   return (
     "You extract distinct academic topics from source material. " +
     `${sourceInstruction} ` +
-    "Preserve meaningful technical terminology, use concise names, and " +
-    "do not invent concepts. Avoid duplicates and generic labels such as " +
-    "Introduction, Conclusion, Summary, or Overview unless the label itself " +
-    "is a meaningful academic subject. Assign each topic a confidence from " +
+    "Preserve meaningful technical terminology and use concise, standalone " +
+    "topic names that state the actual subject or concept represented. Do not " +
+    "return generic section labels such as Introduction, Conclusion, Summary, " +
+    "Overview, Problem Statement, Project Objective, or Process / Workflow by " +
+    "themselves. When a section uses a generic label, name its substantive " +
+    "topic using only information present in the source text. Avoid duplicates " +
+    "and do not invent concepts. Assign each topic a confidence from " +
     "0 to 1 based only on evidence in this source chunk."
   );
 }

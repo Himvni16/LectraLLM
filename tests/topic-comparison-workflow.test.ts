@@ -165,7 +165,7 @@ describe("topic comparison workflow", () => {
     expect(repository.claim).toHaveBeenCalledWith(analysis.id);
   });
 
-  it("marks the analysis FAILED when FastAPI comparison fails", async () => {
+  it("marks the analysis FAILED when the comparison provider fails", async () => {
     const repository = createRepository();
     const client: TopicComparisonClient = {
       compare: vi.fn(async () => {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createAiTopicComparisonClient } from "@/lib/topic-comparison/ai-client";
+import { createGeminiTopicComparisonClient } from "@/lib/topic-comparison/gemini-client";
 import { prismaTopicComparisonRepository } from "@/lib/topic-comparison/repository";
 import {
   compareAnalysisTopics,
@@ -19,7 +19,7 @@ export async function POST(_request: Request, context: RouteContext) {
   try {
     return NextResponse.json(
       await compareAnalysisTopics(id, {
-        client: createAiTopicComparisonClient(),
+        client: createGeminiTopicComparisonClient(),
         repository: prismaTopicComparisonRepository,
       }),
     );

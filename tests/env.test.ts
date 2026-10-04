@@ -4,6 +4,8 @@ import {
   getAiServiceUrl,
   getAiTranscriptionTimeoutMs,
   getGeminiApiKey,
+  getGeminiEmbeddingDimensions,
+  getGeminiEmbeddingModel,
   getGeminiTopicModel,
   getTopicChunkChars,
   getUploadLimits,
@@ -20,6 +22,9 @@ const originalTranscriptionTimeout =
 const originalGeminiApiKey = process.env.GEMINI_API_KEY;
 const originalGeminiTopicModel = process.env.GEMINI_TOPIC_MODEL;
 const originalTopicChunkChars = process.env.TOPIC_CHUNK_CHARS;
+const originalGeminiEmbeddingModel = process.env.GEMINI_EMBEDDING_MODEL;
+const originalGeminiEmbeddingDimensions =
+  process.env.GEMINI_EMBEDDING_DIMENSIONS;
 
 afterEach(() => {
   if (originalDatabaseUrl === undefined) {
@@ -68,6 +73,19 @@ afterEach(() => {
     delete process.env.TOPIC_CHUNK_CHARS;
   } else {
     process.env.TOPIC_CHUNK_CHARS = originalTopicChunkChars;
+  }
+
+  if (originalGeminiEmbeddingModel === undefined) {
+    delete process.env.GEMINI_EMBEDDING_MODEL;
+  } else {
+    process.env.GEMINI_EMBEDDING_MODEL = originalGeminiEmbeddingModel;
+  }
+
+  if (originalGeminiEmbeddingDimensions === undefined) {
+    delete process.env.GEMINI_EMBEDDING_DIMENSIONS;
+  } else {
+    process.env.GEMINI_EMBEDDING_DIMENSIONS =
+      originalGeminiEmbeddingDimensions;
   }
 });
 
@@ -132,6 +150,31 @@ describe("server environment validation", () => {
     );
     expect(() => getTopicChunkChars()).toThrow(
       "TOPIC_CHUNK_CHARS must be an integer from 1000 to 100000.",
+    );
+  });
+
+  it("provides Gemini embedding defaults and validates configured values", () => {
+    delete process.env.GEMINI_EMBEDDING_MODEL;
+    delete process.env.GEMINI_EMBEDDING_DIMENSIONS;
+
+    expect(getGeminiEmbeddingModel()).toBe("gemini-embedding-2");
+    expect(getGeminiEmbeddingDimensions()).toBe(768);
+
+    process.env.GEMINI_EMBEDDING_MODEL = "gemini-embedding-custom";
+    process.env.GEMINI_EMBEDDING_DIMENSIONS = "1024";
+    expect(getGeminiEmbeddingModel()).toBe("gemini-embedding-custom");
+    expect(getGeminiEmbeddingDimensions()).toBe(1_024);
+  });
+
+  it("rejects invalid Gemini embedding configuration", () => {
+    process.env.GEMINI_EMBEDDING_MODEL = "  ";
+    process.env.GEMINI_EMBEDDING_DIMENSIONS = "0";
+
+    expect(() => getGeminiEmbeddingModel()).toThrow(
+      "GEMINI_EMBEDDING_MODEL must not be blank.",
+    );
+    expect(() => getGeminiEmbeddingDimensions()).toThrow(
+      "GEMINI_EMBEDDING_DIMENSIONS must be an integer from 1 to 3072.",
     );
   });
 

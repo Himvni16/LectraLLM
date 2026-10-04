@@ -12,7 +12,7 @@ import { createPdfExtractionClient } from "@/lib/pdf-extraction/client";
 import { createStoredPdfLocator } from "@/lib/pdf-extraction/media";
 import { prismaPdfExtractionRepository } from "@/lib/pdf-extraction/repository";
 import { extractAnalysisPdf } from "@/lib/pdf-extraction/workflow";
-import { createAiTopicComparisonClient } from "@/lib/topic-comparison/ai-client";
+import { createGeminiTopicComparisonClient } from "@/lib/topic-comparison/gemini-client";
 import { prismaTopicComparisonRepository } from "@/lib/topic-comparison/repository";
 import { compareAnalysisTopics } from "@/lib/topic-comparison/workflow";
 import { createGeminiTopicExtractionClient } from "@/lib/topic-extraction/gemini-client";
@@ -130,7 +130,7 @@ const productionDependencies: AnalysisPipelineDependencies = {
     }),
   compareTopics: (id) =>
     compareAnalysisTopics(id, {
-      client: createAiTopicComparisonClient(),
+      client: createGeminiTopicComparisonClient(),
       repository: prismaTopicComparisonRepository,
     }),
 };

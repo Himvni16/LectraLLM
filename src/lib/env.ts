@@ -18,6 +18,9 @@ const DEFAULT_GEMINI_TOPIC_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_TOPIC_CHUNK_CHARS = 12_000;
 const MIN_TOPIC_CHUNK_CHARS = 1_000;
 const MAX_TOPIC_CHUNK_CHARS = 100_000;
+const DEFAULT_GEMINI_EMBEDDING_MODEL = "gemini-embedding-2";
+const DEFAULT_GEMINI_EMBEDDING_DIMENSIONS = 768;
+const MAX_GEMINI_EMBEDDING_DIMENSIONS = 3_072;
 
 export function requireServerEnv(name: ServerEnvName): string {
   const value = process.env[name]?.trim();
@@ -83,6 +86,42 @@ export function getTopicChunkChars(): number {
   return value;
 }
 
+export function getGeminiEmbeddingModel(): string {
+  const configuredModel = process.env.GEMINI_EMBEDDING_MODEL;
+
+  if (configuredModel === undefined) {
+    return DEFAULT_GEMINI_EMBEDDING_MODEL;
+  }
+
+  const model = configuredModel.trim();
+  if (!model) {
+    throw new Error("GEMINI_EMBEDDING_MODEL must not be blank.");
+  }
+
+  return model;
+}
+
+export function getGeminiEmbeddingDimensions(): number {
+  const rawValue = process.env.GEMINI_EMBEDDING_DIMENSIONS;
+
+  if (rawValue === undefined) {
+    return DEFAULT_GEMINI_EMBEDDING_DIMENSIONS;
+  }
+
+  const value = Number(rawValue.trim());
+  if (
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > MAX_GEMINI_EMBEDDING_DIMENSIONS
+  ) {
+    throw new Error(
+      `GEMINI_EMBEDDING_DIMENSIONS must be an integer from 1 to ${MAX_GEMINI_EMBEDDING_DIMENSIONS}.`,
+    );
+  }
+
+  return value;
+}
+
 function readPositiveNumber(name: string, fallback: number): number {
   const rawValue = process.env[name]?.trim();
 
@@ -132,6 +171,8 @@ export function validateServerEnv(): void {
   getGeminiApiKey();
   getGeminiTopicModel();
   getTopicChunkChars();
+  getGeminiEmbeddingModel();
+  getGeminiEmbeddingDimensions();
   getUploadLimits();
   getAiTranscriptionTimeoutMs();
 }
