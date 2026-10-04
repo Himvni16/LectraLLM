@@ -17,10 +17,19 @@ export interface PdfExtractionRepository {
   fail(id: string): Promise<void>;
 }
 
-export interface LocatedPdf {
+export interface SupabaseLocatedPdf {
+  objectPath: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+export interface LocalLocatedPdf {
   absolutePath: string;
   fileName: string;
 }
+
+export type LocatedPdf = SupabaseLocatedPdf | LocalLocatedPdf;
 
 export interface PdfLocator {
   locate(storagePath: string, originalFileName: string): Promise<LocatedPdf>;

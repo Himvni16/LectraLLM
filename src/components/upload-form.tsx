@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 
 import { Button, FilePicker } from "@/components/ui";
 import type { UploadLimits } from "@/lib/env";
-import type { UploadSuccessResponse } from "@/lib/uploads/types";
+import type {
+  FinalizeUploadResponse,
+  InitiateUploadResponse,
+  UploadSuccessResponse,
+} from "@/lib/uploads/types";
 import {
   UploadRequestError,
   validateUploadPair,
@@ -19,6 +23,64 @@ interface ErrorResponse {
   error?: {
     message?: string;
   };
+}
+
+async function readJsonResponse<T>(response: Response): Promise<T> {
+  const payload = (await response.json()) as T | ErrorResponse;
+  if (!response.ok) {
+    const message = (payload as ErrorResponse | null)?.error?.message;
+    throw new Error(message ?? "The lecture could not be uploaded.");
+  }
+  return payload as T;
+}
+
+async function uploadVideoToCloudinary(
+  file: File,
+  instructions: InitiateUploadResponse["video"],
+): Promise<void> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("api_key", instructions.apiKey);
+  formData.append("timestamp", String(instructions.timestamp));
+  formData.append("signature", instructions.signature);
+  formData.append("public_id", instructions.publicId);
+  formData.append("overwrite", "false");
+  formData.append("type", "authenticated");
+  const response = await fetch(instructions.uploadUrl, {
+    method: "POST",
+    body: formData,
+  });
+  const payload = (await response.json()) as {
+    public_id?: unknown;
+    resource_type?: unknown;
+    bytes?: unknown;
+    error?: { message?: string };
+  };
+  if (!response.ok) {
+    throw new Error(payload.error?.message ?? "The video upload failed.");
+  }
+  if (
+    payload.public_id !== instructions.publicId ||
+    payload.resource_type !== "video" ||
+    payload.bytes !== file.size
+  ) {
+    throw new Error("Cloudinary returned unexpected video metadata.");
+  }
+}
+
+async function uploadPdfToSupabase(
+  file: File,
+  instructions: InitiateUploadResponse["pdf"],
+): Promise<void> {
+  const formData = new FormData();
+  formData.append("cacheControl", "3600");
+  formData.append("", file);
+  const response = await fetch(instructions.signedUrl, {
+    method: "PUT",
+    headers: { "x-upsert": "false" },
+    body: formData,
+  });
+  if (!response.ok) throw new Error("The PDF upload failed.");
 }
 
 export function UploadForm({ limits }: UploadFormProps) {
@@ -48,29 +110,68 @@ export function UploadForm({ limits }: UploadFormProps) {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("video", video);
-    formData.append("pdf", pdf);
     setIsSubmitting(true);
 
+    let initiatedManifest: string | undefined;
+
     try {
-      const response = await fetch("/api/analyses", {
+      const initiateResponse = await fetch("/api/uploads/initiate", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          files: [
+            {
+              source: "VIDEO",
+              originalFileName: video.name,
+              contentType: video.type,
+              size: video.size,
+            },
+            {
+              source: "PDF",
+              originalFileName: pdf.name,
+              contentType: pdf.type,
+              size: pdf.size,
+            },
+          ],
+        }),
       });
-      const payload = (await response.json()) as
-        | UploadSuccessResponse
-        | ErrorResponse;
+      const initiated = await readJsonResponse<InitiateUploadResponse>(
+        initiateResponse,
+      );
+      initiatedManifest = initiated.uploadManifest;
 
-      if (!response.ok) {
-        const message =
-          "error" in payload ? payload.error?.message : undefined;
-        throw new Error(message ?? "The lecture could not be uploaded.");
-      }
+      await uploadVideoToCloudinary(video, initiated.video);
+      await uploadPdfToSupabase(pdf, initiated.pdf);
 
-      const result = payload as UploadSuccessResponse;
+      const finalizeResponse = await fetch("/api/uploads/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uploadManifest: initiated.uploadManifest,
+        }),
+      });
+      const finalized = await readJsonResponse<FinalizeUploadResponse>(
+        finalizeResponse,
+      );
+
+      const analysisResponse = await fetch("/api/analyses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadManifest: finalized.uploadManifest }),
+      });
+      const result = await readJsonResponse<UploadSuccessResponse>(
+        analysisResponse,
+      );
+
       router.push(`/analyses/${encodeURIComponent(result.analysisId)}`);
     } catch (submissionError) {
+      if (initiatedManifest) {
+        void fetch("/api/uploads/abort", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uploadManifest: initiatedManifest }),
+        }).catch(() => undefined);
+      }
       setError(
         submissionError instanceof Error
           ? submissionError.message

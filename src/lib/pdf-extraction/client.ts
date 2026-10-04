@@ -6,6 +6,10 @@ import { extractText } from "unpdf";
 
 import { getUploadLimits } from "@/lib/env";
 import {
+  createSupabasePdfStore,
+  type SupabasePdfStore,
+} from "@/lib/supabase/pdfs";
+import {
   PdfExtractionClientError,
   type AiPdfExtractionResult,
   type PdfExtractionClient,
@@ -13,6 +17,7 @@ import {
 
 interface PdfExtractionClientOptions {
   maxSizeBytes?: number;
+  pdfStore?: Pick<SupabasePdfStore, "getBytes">;
 }
 
 export function normalizeExtractedText(text: string): string {
@@ -40,25 +45,36 @@ export function createPdfExtractionClient(
       const maxSizeBytes =
         options.maxSizeBytes ?? getUploadLimits().pdfMaxSizeBytes;
 
-      let contents: Buffer;
+      let contents: Uint8Array;
 
       try {
-        const fileStats = await stat(pdf.absolutePath);
-        if (!fileStats.isFile()) {
-          throw new Error("Stored PDF path is not a file.");
+        if ("objectPath" in pdf) {
+          if (pdf.size === 0) {
+            throw new PdfExtractionClientError("No extractable text found in PDF.");
+          }
+          if (pdf.size > maxSizeBytes) {
+            throw new PdfExtractionClientError("The PDF text could not be extracted.");
+          }
+          contents = await (
+            options.pdfStore ?? createSupabasePdfStore()
+          ).getBytes(pdf.objectPath, maxSizeBytes);
+        } else {
+          const fileStats = await stat(pdf.absolutePath);
+          if (!fileStats.isFile()) {
+            throw new Error("Stored PDF path is not a file.");
+          }
+          if (fileStats.size === 0) {
+            throw new PdfExtractionClientError(
+              "No extractable text found in PDF.",
+            );
+          }
+          if (fileStats.size > maxSizeBytes) {
+            throw new PdfExtractionClientError(
+              "The PDF text could not be extracted.",
+            );
+          }
+          contents = await readFile(pdf.absolutePath);
         }
-        if (fileStats.size === 0) {
-          throw new PdfExtractionClientError(
-            "No extractable text found in PDF.",
-          );
-        }
-        if (fileStats.size > maxSizeBytes) {
-          throw new PdfExtractionClientError(
-            "The PDF text could not be extracted.",
-          );
-        }
-
-        contents = await readFile(pdf.absolutePath);
         if (contents.byteLength > maxSizeBytes) {
           throw new PdfExtractionClientError(
             "The PDF text could not be extracted.",

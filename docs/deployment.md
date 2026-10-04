@@ -9,7 +9,8 @@ Deploy these resources in a region with low network latency between them:
 1. **Next.js web service** — serves the UI and server routes, owns Prisma/database access, and orchestrates analysis stages.
 2. **FastAPI AI service** — performs transcription, PDF extraction, Gemini topic extraction, and local embedding comparison. It does not access PostgreSQL.
 3. **PostgreSQL/Neon** — stores analyses, topics, matches, and workflow status.
-4. **Persistent web storage** — mounts at the repository/application `storage/` directory for uploaded videos and PDFs.
+4. **Cloudinary Free** — stores lecture videos uploaded directly from the browser.
+5. **Supabase Storage Free** — stores PDFs in a private bucket.
 
 ```text
 Browser → Next.js → PostgreSQL/Neon
@@ -37,9 +38,16 @@ Set these as server-side environment variables on the Next.js service:
 | `DATABASE_URL` | Yes | Pooled Neon/PostgreSQL URL used by the runtime Neon serverless adapter |
 | `DIRECT_URL` | Yes for deployment operations | Direct, non-pooler URL used by Prisma CLI and migrations |
 | `AI_SERVICE_URL` | Yes | Internal base URL of the FastAPI service; do not append an endpoint path |
-| `VIDEO_MAX_SIZE_MB` | No | Upload limit in MiB; default `250` |
+| `VIDEO_MAX_SIZE_MB` | No | Upload limit in MiB; default `100` |
 | `PDF_MAX_SIZE_MB` | No | Upload limit in MiB; default `25` |
 | `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | AI request timeout in seconds; default `1800` |
+| `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary product-environment name |
+| `CLOUDINARY_API_KEY` | Yes | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Yes | Server-only Cloudinary API secret |
+| `CLOUDINARY_UPLOAD_FOLDER` | No | Video namespace; default `lectrallm/videos` |
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only service-role key |
+| `SUPABASE_STORAGE_BUCKET` | Yes | Existing private PDF bucket |
 
 `DATABASE_URL` and `DIRECT_URL` are secrets. Configure them through the hosting platform and never expose them through `NEXT_PUBLIC_*` variables. The web runtime uses the pooled URL through `PrismaNeon`; Prisma migration commands use `DIRECT_URL` from the schema datasource.
 
@@ -63,9 +71,9 @@ Set these only on the FastAPI service:
 
 Never put `GEMINI_API_KEY` in the Next.js environment or send it to the browser. The checked-in example deliberately contains an empty placeholder.
 
-## Persistent files and model caches
+## Provider storage and model caches
 
-The current upload implementation writes to `storage/videos/` and `storage/pdfs/`, while PostgreSQL stores their relative paths. A production Next.js service therefore **requires a persistent disk mounted at `storage/`**. Ephemeral disks can silently lose source files after restarts or redeployments. Multiple web instances require a truly shared volume and compatible request topology; otherwise use a future, separately scoped object-storage implementation.
+Lecture videos are stored under generated Cloudinary public IDs and PDFs under generated paths in a private Supabase Storage bucket. PostgreSQL stores only those stable identifiers. The browser uploads directly to each provider, so Vercel does not proxy the 100 MB video or 25 MB PDF request bodies. Configure the Supabase bucket as private with a 25 MB file-size limit and `application/pdf` as its allowed MIME type.
 
 FastAPI streams incoming files to the operating system's temporary directory. That directory must be writable and can be ephemeral because temporary files are removed after each request.
 
@@ -99,7 +107,7 @@ npm run build
 npm start
 ```
 
-Run the web service behind HTTPS. Ensure the proxy accepts request bodies at least as large as the configured video limit and uses timeouts long enough for the synchronous Phase 3–6 requests.
+Run the web service behind HTTPS. Upload authorization, finalization, and analysis creation send only small JSON requests to Vercel.
 
 ## Build and start the AI service
 
@@ -126,7 +134,7 @@ The health endpoints confirm process connectivity, not model availability, Gemin
 
 1. Confirm the deployment uses Node.js 20.19+ and a supported Python version.
 2. Configure all server-side variables and secrets; confirm no secret has a `NEXT_PUBLIC_` prefix.
-3. Attach the persistent `storage/` volume before accepting uploads.
+3. Configure Cloudinary and the private Supabase PDF bucket before accepting uploads.
 4. Install pinned Python dependencies and Node lockfile dependencies.
 5. Generate Prisma Client, validate the schema, and run `prisma migrate deploy`.
 6. Run the full web and AI test suites and build the Next.js production bundle.
@@ -137,14 +145,14 @@ The health endpoints confirm process connectivity, not model availability, Gemin
 ## Common production issues
 
 - **Neon is slow after idle:** Neon can auto-suspend. Runtime access uses its serverless adapter and the application retries only transient Prisma `P1001` first-connection failures up to three total attempts. No manual wake-up is required.
-- **Uploads disappear after restart:** the web service is using ephemeral storage or the disk is mounted at the wrong path. Mount durable storage at `storage/` before uploading.
-- **A stored file cannot be found on another instance:** instances do not share the same volume. Use a shared filesystem topology or keep a single web instance until external object storage is separately implemented.
+- **Cloudinary upload fails:** verify the upload signature clock, API key, 100 MB file limit, and Free-plan credit usage.
+- **Supabase PDF upload fails:** verify the bucket exists, is private, permits `application/pdf`, and has a 25 MB bucket file limit.
 - **First transcription/comparison is slow:** model files are downloading or loading. Persist the Hugging Face cache and allow sufficient startup/request time.
 - **FastAPI runs out of memory:** reduce worker count or model size and review the Whisper device/compute type.
 - **Browser CORS failure:** set `AI_CORS_ORIGINS` to the exact deployed web origin. Normal browser workflow should still use Next.js routes rather than calling FastAPI directly.
 - **Gemini extraction fails:** verify the AI-only API key, configured model availability, quota, and outbound network access. Provider details remain server-side.
 - **Proxy returns 503:** check FastAPI `/health`, the internal `AI_SERVICE_URL`, service networking, and TLS/DNS configuration. Browser responses intentionally omit connection internals.
-- **Large uploads fail before reaching Next.js:** increase the hosting proxy/body limit and align it with `VIDEO_MAX_SIZE_MB` and `PDF_MAX_SIZE_MB`.
+- **Large uploads fail:** confirm the browser is using the provider-signed URL rather than sending file bytes to a Next.js route.
 - **Prisma CLI cannot connect while runtime works:** verify `DIRECT_URL` is the direct endpoint and is available to the release environment; runtime uses the separate pooled `DATABASE_URL`.
 
 ## Scope boundary

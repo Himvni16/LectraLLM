@@ -6,7 +6,12 @@ import path from "node:path";
 import {
   getAiServiceUrl,
   getAiTranscriptionTimeoutMs,
+  getUploadLimits,
 } from "@/lib/env";
+import {
+  createCloudinaryVideoStore,
+  type CloudinaryVideoStore,
+} from "@/lib/cloudinary/videos";
 import type {
   AiTranscriptionResult,
   LocatedVideo,
@@ -36,17 +41,32 @@ function isTranscriptionResult(value: unknown): value is AiTranscriptionResult {
   );
 }
 
-export function createAiTranscriptionClient(): TranscriptionClient {
+interface AiTranscriptionClientOptions {
+  videoStore?: Pick<CloudinaryVideoStore, "getBytes">;
+  maxSizeBytes?: number;
+}
+
+export function createAiTranscriptionClient(
+  options: AiTranscriptionClientOptions = {},
+): TranscriptionClient {
   return {
     async transcribe(video: LocatedVideo): Promise<AiTranscriptionResult> {
-      const extension = path.extname(video.absolutePath).toLowerCase();
-      const mimeType = VIDEO_MIME_TYPES[extension];
+      const location = "publicId" in video ? video.publicId : video.absolutePath;
+      const extension = path.extname(location).toLowerCase();
+      const mimeType =
+        "publicId" in video ? video.contentType : VIDEO_MIME_TYPES[extension];
 
       if (!mimeType) {
         throw new Error("Stored lecture video has an unsupported format.");
       }
 
-      const contents = await readFile(video.absolutePath);
+      const contents =
+        "publicId" in video
+          ? await (options.videoStore ?? createCloudinaryVideoStore()).getBytes(
+              video.publicId,
+              options.maxSizeBytes ?? getUploadLimits().videoMaxSizeBytes,
+            )
+          : await readFile(video.absolutePath);
       const formData = new FormData();
       formData.append(
         "media",

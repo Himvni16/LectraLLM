@@ -9,7 +9,7 @@ import {
   type AnalysisResumeSnapshot,
 } from "@/lib/analysis-pipeline/resume";
 import { createPdfExtractionClient } from "@/lib/pdf-extraction/client";
-import { createStoredPdfLocator } from "@/lib/pdf-extraction/media";
+import { createSupabasePdfLocator } from "@/lib/pdf-extraction/media";
 import { prismaPdfExtractionRepository } from "@/lib/pdf-extraction/repository";
 import { extractAnalysisPdf } from "@/lib/pdf-extraction/workflow";
 import { createGeminiTopicComparisonClient } from "@/lib/topic-comparison/gemini-client";
@@ -19,7 +19,7 @@ import { createGeminiTopicExtractionClient } from "@/lib/topic-extraction/gemini
 import { prismaTopicExtractionRepository } from "@/lib/topic-extraction/repository";
 import { extractAnalysisTopics } from "@/lib/topic-extraction/workflow";
 import { createAiTranscriptionClient } from "@/lib/transcription/ai-client";
-import { createStoredVideoLocator } from "@/lib/transcription/media";
+import { createCloudinaryVideoLocator } from "@/lib/transcription/media";
 import { prismaTranscriptionRepository } from "@/lib/transcription/repository";
 import { transcribeAnalysis } from "@/lib/transcription/workflow";
 
@@ -115,13 +115,13 @@ const productionDependencies: AnalysisPipelineDependencies = {
     transcribeAnalysis(id, {
       client: createAiTranscriptionClient(),
       repository: prismaTranscriptionRepository,
-      videoLocator: createStoredVideoLocator(),
+      videoLocator: createCloudinaryVideoLocator(),
     }),
   extractPdf: (id) =>
     extractAnalysisPdf(id, {
       client: createPdfExtractionClient(),
       repository: prismaPdfExtractionRepository,
-      pdfLocator: createStoredPdfLocator(),
+      pdfLocator: createSupabasePdfLocator(),
     }),
   extractTopics: (id) =>
     extractAnalysisTopics(id, {

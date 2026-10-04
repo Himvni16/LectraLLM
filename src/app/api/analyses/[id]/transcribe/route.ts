@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createAiTranscriptionClient } from "@/lib/transcription/ai-client";
-import { createStoredVideoLocator } from "@/lib/transcription/media";
+import { createCloudinaryVideoLocator } from "@/lib/transcription/media";
 import { prismaTranscriptionRepository } from "@/lib/transcription/repository";
 import {
   transcribeAnalysis,
@@ -21,7 +21,7 @@ export async function POST(_request: Request, context: RouteContext) {
     const result = await transcribeAnalysis(id, {
       client: createAiTranscriptionClient(),
       repository: prismaTranscriptionRepository,
-      videoLocator: createStoredVideoLocator(),
+      videoLocator: createCloudinaryVideoLocator(),
     });
 
     return NextResponse.json(result);

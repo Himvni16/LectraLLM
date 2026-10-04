@@ -16,10 +16,19 @@ export interface TranscriptionRepository {
   fail(id: string): Promise<void>;
 }
 
-export interface LocatedVideo {
+export interface CloudinaryLocatedVideo {
+  publicId: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+export interface LocalLocatedVideo {
   absolutePath: string;
   fileName: string;
 }
+
+export type LocatedVideo = CloudinaryLocatedVideo | LocalLocatedVideo;
 
 export interface VideoLocator {
   locate(storagePath: string, originalFileName: string): Promise<LocatedVideo>;

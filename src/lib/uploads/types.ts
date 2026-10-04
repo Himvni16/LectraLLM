@@ -40,3 +40,26 @@ export interface UploadSuccessResponse {
   videoFileName: string;
   pdfFileName: string;
 }
+
+export interface InitiateUploadResponse {
+  uploadManifest: string;
+  expiresAt: string;
+  video: {
+    uploadUrl: string;
+    cloudName: string;
+    apiKey: string;
+    publicId: string;
+    timestamp: number;
+    signature: string;
+  };
+  pdf: {
+    signedUrl: string;
+    objectPath: string;
+    expiresInSeconds: number;
+  };
+}
+
+export interface FinalizeUploadResponse {
+  uploadManifest: string;
+  expiresAt: string;
+}

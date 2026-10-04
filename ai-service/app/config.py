@@ -27,7 +27,7 @@ class Settings(BaseSettings):
         ),
     )
     transcription_max_size_mb: int = Field(
-        default=250,
+        default=100,
         gt=0,
         validation_alias=AliasChoices(
             "TRANSCRIPTION_MAX_SIZE_MB",

@@ -11,6 +11,7 @@ import {
   parseUploadFormData,
   sanitizeOriginalFileName,
   UploadRequestError,
+  validateUploadMetadataPair,
   validateUploadPair,
 } from "@/lib/uploads/validation";
 
@@ -44,6 +45,157 @@ function expectUploadError(callback: () => unknown, code: string) {
 }
 
 describe("upload form validation", () => {
+  it("enforces the 100 MB production video limit", () => {
+    const productionLimits: UploadLimits = {
+      videoMaxSizeMb: 100,
+      pdfMaxSizeMb: 25,
+      videoMaxSizeBytes: 100 * 1024 * 1024,
+      pdfMaxSizeBytes: 25 * 1024 * 1024,
+    };
+    const metadata = {
+      files: [
+        {
+          source: "VIDEO",
+          originalFileName: "lecture.mp4",
+          contentType: "video/mp4",
+          size: 100 * 1024 * 1024,
+        },
+        {
+          source: "PDF",
+          originalFileName: "notes.pdf",
+          contentType: "application/pdf",
+          size: 1,
+        },
+      ],
+    };
+
+    expect(() =>
+      validateUploadMetadataPair(metadata, productionLimits),
+    ).not.toThrow();
+    metadata.files[0].size += 1;
+    expectUploadError(
+      () => validateUploadMetadataPair(metadata, productionLimits),
+      "VIDEO_TOO_LARGE",
+    );
+  });
+
+  it("validates metadata-only direct uploads with the same file rules", () => {
+    expect(
+      validateUploadMetadataPair(
+        {
+          files: [
+            {
+              source: "VIDEO",
+              originalFileName: "C:\\fakepath\\lecture.mp4",
+              contentType: "video/mp4",
+              size: 4,
+            },
+            {
+              source: "PDF",
+              originalFileName: "notes.pdf",
+              contentType: "application/pdf",
+              size: 4,
+            },
+          ],
+        },
+        limits,
+      ),
+    ).toMatchObject({
+      video: { originalFileName: "lecture.mp4", extension: ".mp4" },
+      pdf: { originalFileName: "notes.pdf", extension: ".pdf" },
+    });
+  });
+
+  it("accepts browser metadata with an empty MIME type using its valid extension", () => {
+    expect(
+      validateUploadMetadataPair(
+        {
+          files: [
+            {
+              source: "VIDEO",
+              originalFileName: "lecture.webm",
+              contentType: "",
+              size: 4,
+            },
+            {
+              source: "PDF",
+              originalFileName: "notes.pdf",
+              contentType: "",
+              size: 4,
+            },
+          ],
+        },
+        limits,
+      ),
+    ).toMatchObject({
+      video: { contentType: "video/webm" },
+      pdf: { contentType: "application/pdf" },
+    });
+  });
+
+  it.each([
+    ["invalid extension", "lecture.exe", "video/mp4", 4, "INVALID_VIDEO_TYPE"],
+    ["invalid MIME", "lecture.mp4", "text/plain", 4, "INVALID_VIDEO_TYPE"],
+    ["oversized file", "lecture.mp4", "video/mp4", 11, "VIDEO_TOO_LARGE"],
+  ])("rejects direct-upload metadata with an %s", (_label, name, type, size, code) => {
+    expectUploadError(
+      () =>
+        validateUploadMetadataPair(
+          {
+            files: [
+              {
+                source: "VIDEO",
+                originalFileName: name,
+                contentType: type,
+                size,
+              },
+              {
+                source: "PDF",
+                originalFileName: "notes.pdf",
+                contentType: "application/pdf",
+                size: 4,
+              },
+            ],
+          },
+          limits,
+        ),
+      code,
+    );
+  });
+
+  it.each([
+    ["notes.txt", "application/pdf", 4, "INVALID_PDF_TYPE"],
+    ["notes.pdf", "text/plain", 4, "INVALID_PDF_TYPE"],
+    ["notes.pdf", "application/pdf", 6, "PDF_TOO_LARGE"],
+  ])(
+    "rejects invalid direct-upload PDF metadata (%s, %s)",
+    (name, type, size, code) => {
+      expectUploadError(
+        () =>
+          validateUploadMetadataPair(
+            {
+              files: [
+                {
+                  source: "VIDEO",
+                  originalFileName: "lecture.mp4",
+                  contentType: "video/mp4",
+                  size: 4,
+                },
+                {
+                  source: "PDF",
+                  originalFileName: name,
+                  contentType: type,
+                  size,
+                },
+              ],
+            },
+            limits,
+          ),
+        code,
+      );
+    },
+  );
+
   it("rejects a missing video", () => {
     const formData = new FormData();
     formData.append("pdf", pdfFile());

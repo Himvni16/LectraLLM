@@ -51,9 +51,16 @@ The web app reads `.env.local`, which is intentionally ignored by Git.
 | `DATABASE_URL` | Yes | Pooled PostgreSQL URL used by application/runtime Prisma queries |
 | `DIRECT_URL` | Yes for Prisma CLI | Direct PostgreSQL URL used by migrations and administrative commands |
 | `AI_SERVICE_URL` | Yes | Base URL for the FastAPI service, normally `http://127.0.0.1:8000` |
-| `VIDEO_MAX_SIZE_MB` | No | Lecture video limit in MiB; defaults to `250` |
+| `VIDEO_MAX_SIZE_MB` | No | Lecture video limit in MiB; defaults to `100` |
 | `PDF_MAX_SIZE_MB` | No | Lecture PDF limit in MiB; defaults to `25` |
 | `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Web-to-AI processing timeout currently shared by transcription and PDF extraction; defaults to `1800` seconds |
+| `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary Free product-environment name |
+| `CLOUDINARY_API_KEY` | Yes | Cloudinary public API key returned only with narrowly scoped upload signatures |
+| `CLOUDINARY_API_SECRET` | Yes | Server-only Cloudinary signing and Admin API secret |
+| `CLOUDINARY_UPLOAD_FOLDER` | No | Video namespace; defaults to `lectrallm/videos` |
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only key used to authorize and verify private PDF objects |
+| `SUPABASE_STORAGE_BUCKET` | Yes | Existing private bucket used for PDFs |
 
 Copy `.env.example` and adjust credentials. Required server values are validated when the Next.js server starts and produce an actionable error when absent.
 
@@ -77,7 +84,7 @@ LectraLLM retains a defensive retry around application database boundaries, incl
 
 ## Upload workflow
 
-Open `http://localhost:3000/upload`, select one lecture video and one corresponding PDF, and submit them together. The server validates both files, stores them under the local `storage/` directory, and creates one `Analysis` record with status `UPLOADED`.
+Open `http://localhost:3000/upload`, select one lecture video and one corresponding PDF, and submit them together. The browser uploads the video directly to Cloudinary and the PDF directly to a private Supabase Storage bucket using short-lived server-issued authorization. Next.js receives metadata only, verifies both provider objects, and creates one `Analysis` record with status `UPLOADED`.
 
 Supported video formats:
 
@@ -87,17 +94,7 @@ Supported video formats:
 
 The document must be a `.pdf` with the `application/pdf` MIME type when the browser supplies one. Empty, missing, duplicate, invalid, or oversized files are rejected server-side with readable errors.
 
-Local development storage is organized as follows:
-
-```text
-storage/
-├── videos/
-└── pdfs/
-```
-
-Physical filenames are collision-safe generated UUIDs; original sanitized filenames are retained in the database. The runtime directory is ignored by Git.
-
-> **Production storage requirement:** uploads currently remain on the local filesystem. Any production host must attach persistent storage at the application `storage/` directory and keep all requests on a topology that can access the same disk. Ephemeral or independently scaled web instances can lose uploads or make them unavailable. An external object-storage implementation is not included.
+Cloudinary public IDs and Supabase object paths use collision-safe UUID namespaces; original sanitized filenames remain in the database. The browser never receives Cloudinary's API secret or Supabase's service-role key, and large file bodies do not pass through Next.js.
 
 ## AI service setup
 
@@ -120,7 +117,7 @@ The AI service reads these values from `ai-service/.env`:
 | `WHISPER_MODEL` | `base` | faster-whisper model name or local model path |
 | `WHISPER_DEVICE` | `cpu` | CTranslate2 execution device |
 | `WHISPER_COMPUTE_TYPE` | `int8` | CTranslate2 compute type |
-| `TRANSCRIPTION_MAX_SIZE_MB` | `250` | Maximum media size accepted by `/transcribe` |
+| `TRANSCRIPTION_MAX_SIZE_MB` | `100` | Maximum media size accepted by `/transcribe` |
 | `PDF_MAX_SIZE_MB` | `25` | Maximum PDF size accepted by `/extract-pdf`; keep aligned with the web value |
 | `TOPIC_PROVIDER` | `gemini` | Topic model provider; Phase 5 uses the Gemini Developer API |
 | `GEMINI_API_KEY` | No default | Required only when running topic extraction; keep this server-side |

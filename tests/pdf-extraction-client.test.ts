@@ -90,6 +90,23 @@ async function writePdf(contents: Buffer): Promise<string> {
 }
 
 describe("server-side TypeScript PDF extraction", () => {
+  it("extracts PDF text from Supabase bytes without a local file", async () => {
+    const contents = createTextPdf([["Supabase lecture notes"]]);
+    const getBytes = async () => new Uint8Array(contents);
+
+    const result = await createPdfExtractionClient({
+      pdfStore: { getBytes },
+    }).extract({
+      objectPath: "analyses/c38f8f62-4d06-4f2c-a3ca-d753442e7233/document.pdf",
+      fileName: "notes.pdf",
+      contentType: "application/pdf",
+      size: contents.byteLength,
+    });
+
+    expect(result.text).toBe("Supabase lecture notes");
+    expect(result.pageCount).toBe(1);
+  });
+
   it("extracts text and metadata from a valid text PDF", async () => {
     const pdfPath = await writePdf(
       createTextPdf([["Deadlock prevention", "Resource ordering"]]),

@@ -1,9 +1,18 @@
 import "server-only";
 
-type ServerEnvName = "DATABASE_URL" | "AI_SERVICE_URL" | "GEMINI_API_KEY";
+type ServerEnvName =
+  | "DATABASE_URL"
+  | "AI_SERVICE_URL"
+  | "GEMINI_API_KEY"
+  | "CLOUDINARY_CLOUD_NAME"
+  | "CLOUDINARY_API_KEY"
+  | "CLOUDINARY_API_SECRET"
+  | "SUPABASE_URL"
+  | "SUPABASE_SERVICE_ROLE_KEY"
+  | "SUPABASE_STORAGE_BUCKET";
 
 const MEBIBYTE = 1024 * 1024;
-const DEFAULT_VIDEO_MAX_SIZE_MB = 250;
+const DEFAULT_VIDEO_MAX_SIZE_MB = 100;
 const DEFAULT_PDF_MAX_SIZE_MB = 25;
 
 export interface UploadLimits {
@@ -21,6 +30,20 @@ const MAX_TOPIC_CHUNK_CHARS = 100_000;
 const DEFAULT_GEMINI_EMBEDDING_MODEL = "gemini-embedding-2";
 const DEFAULT_GEMINI_EMBEDDING_DIMENSIONS = 768;
 const MAX_GEMINI_EMBEDDING_DIMENSIONS = 3_072;
+const DEFAULT_CLOUDINARY_UPLOAD_FOLDER = "lectrallm/videos";
+
+export interface CloudinaryConfig {
+  cloudName: string;
+  apiKey: string;
+  apiSecret: string;
+  uploadFolder: string;
+}
+
+export interface SupabaseStorageConfig {
+  url: string;
+  serviceRoleKey: string;
+  bucket: string;
+}
 
 export function requireServerEnv(name: ServerEnvName): string {
   const value = process.env[name]?.trim();
@@ -165,6 +188,45 @@ export function getAiTranscriptionTimeoutMs(): number {
   );
 }
 
+export function getCloudinaryConfig(): CloudinaryConfig {
+  const uploadFolder =
+    process.env.CLOUDINARY_UPLOAD_FOLDER?.trim() ||
+    DEFAULT_CLOUDINARY_UPLOAD_FOLDER;
+  if (
+    uploadFolder.startsWith("/") ||
+    uploadFolder.endsWith("/") ||
+    uploadFolder.includes("..") ||
+    !/^[A-Za-z0-9/_-]+$/.test(uploadFolder)
+  ) {
+    throw new Error(
+      "CLOUDINARY_UPLOAD_FOLDER must be a relative Cloudinary folder path.",
+    );
+  }
+
+  return {
+    cloudName: requireServerEnv("CLOUDINARY_CLOUD_NAME"),
+    apiKey: requireServerEnv("CLOUDINARY_API_KEY"),
+    apiSecret: requireServerEnv("CLOUDINARY_API_SECRET"),
+    uploadFolder,
+  };
+}
+
+export function getSupabaseStorageConfig(): SupabaseStorageConfig {
+  const rawUrl = requireServerEnv("SUPABASE_URL");
+  let url: string;
+  try {
+    url = new URL(rawUrl).toString().replace(/\/$/, "");
+  } catch {
+    throw new Error("SUPABASE_URL must be a valid absolute URL.");
+  }
+
+  return {
+    url,
+    serviceRoleKey: requireServerEnv("SUPABASE_SERVICE_ROLE_KEY"),
+    bucket: requireServerEnv("SUPABASE_STORAGE_BUCKET"),
+  };
+}
+
 export function validateServerEnv(): void {
   requireServerEnv("DATABASE_URL");
   getAiServiceUrl();
@@ -175,4 +237,6 @@ export function validateServerEnv(): void {
   getGeminiEmbeddingDimensions();
   getUploadLimits();
   getAiTranscriptionTimeoutMs();
+  getCloudinaryConfig();
+  getSupabaseStorageConfig();
 }

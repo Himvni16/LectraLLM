@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  createCloudinaryVideoLocator,
   createStoredVideoLocator,
   StoredVideoUnavailableError,
 } from "@/lib/transcription/media";
@@ -18,6 +19,32 @@ afterEach(async () => {
 });
 
 describe("stored transcription media lookup", () => {
+  it("locates a Cloudinary video using verified asset metadata", async () => {
+    const publicId =
+      "lectrallm/videos/c38f8f62-4d06-4f2c-a3ca-d753442e7233";
+    const locator = createCloudinaryVideoLocator({
+      maxSizeBytes: 100,
+      uploadFolder: "lectrallm/videos",
+      videoStore: {
+        inspect: async () => ({
+          publicId,
+          resourceType: "video",
+          deliveryType: "authenticated",
+          format: "mp4",
+          bytes: 42,
+          secureUrl: "https://res.cloudinary.com/cloud/video/upload/video.mp4",
+        }),
+      },
+    });
+
+    await expect(locator.locate(publicId, "lecture.mp4")).resolves.toEqual({
+      publicId,
+      fileName: "lecture.mp4",
+      contentType: "video/mp4",
+      size: 42,
+    });
+  });
+
   it("resolves only existing files inside storage/videos", async () => {
     const workspaceRoot = await mkdtemp(
       path.join(tmpdir(), "lectrallm-transcription-test-"),

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createPdfExtractionClient } from "@/lib/pdf-extraction/client";
-import { createStoredPdfLocator } from "@/lib/pdf-extraction/media";
+import { createSupabasePdfLocator } from "@/lib/pdf-extraction/media";
 import { prismaPdfExtractionRepository } from "@/lib/pdf-extraction/repository";
 import {
   extractAnalysisPdf,
@@ -21,7 +21,7 @@ export async function POST(_request: Request, context: RouteContext) {
     const result = await extractAnalysisPdf(id, {
       client: createPdfExtractionClient(),
       repository: prismaPdfExtractionRepository,
-      pdfLocator: createStoredPdfLocator(),
+      pdfLocator: createSupabasePdfLocator(),
     });
 
     return NextResponse.json(result);

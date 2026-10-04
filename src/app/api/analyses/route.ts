@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { createCloudinaryVideoStore } from "@/lib/cloudinary/videos";
 import { getUploadLimits } from "@/lib/env";
-import { createAnalysisUpload } from "@/lib/uploads/analysis-upload";
+import { createSupabasePdfStore } from "@/lib/supabase/pdfs";
 import { prismaAnalysisRepository } from "@/lib/uploads/analysis-repository";
-import { createLocalUploadStorage } from "@/lib/uploads/local-storage";
-import {
-  parseUploadFormData,
-  UploadRequestError,
-} from "@/lib/uploads/validation";
+import { createAnalysisFromDirectUpload } from "@/lib/uploads/direct-analysis";
+import { DirectUploadError } from "@/lib/uploads/direct-upload";
+import { UploadRequestError } from "@/lib/uploads/validation";
 
 export const runtime = "nodejs";
 
@@ -18,37 +17,54 @@ function errorResponse(code: string, message: string, status: number) {
 export async function POST(request: Request) {
   const contentType = request.headers.get("content-type") ?? "";
 
-  if (!contentType.toLowerCase().startsWith("multipart/form-data")) {
+  if (!contentType.toLowerCase().startsWith("application/json")) {
     return errorResponse(
       "INVALID_FORM_DATA",
-      "The request must use multipart form data.",
+      "The request must use JSON.",
       415,
     );
   }
 
-  let formData: FormData;
-
+  let body: unknown;
   try {
-    formData = await request.formData();
-  } catch (error) {
-    console.warn("Invalid multipart upload request.", error);
+    body = await request.json();
+  } catch {
     return errorResponse(
-      "INVALID_FORM_DATA",
-      "The upload form could not be read.",
+      "INVALID_UPLOAD_MANIFEST",
+      "The upload manifest is invalid or has expired.",
       400,
     );
   }
 
   try {
-    const upload = parseUploadFormData(formData);
-    const result = await createAnalysisUpload(upload, getUploadLimits(), {
-      repository: prismaAnalysisRepository,
-      storage: createLocalUploadStorage(),
-    });
+    const uploadManifest =
+      body && typeof body === "object"
+        ? (body as { uploadManifest?: unknown }).uploadManifest
+        : undefined;
+    if (typeof uploadManifest !== "string") {
+      return errorResponse(
+        "INVALID_UPLOAD_MANIFEST",
+        "The upload manifest is invalid or has expired.",
+        400,
+      );
+    }
+
+    const result = await createAnalysisFromDirectUpload(
+      uploadManifest,
+      getUploadLimits(),
+      {
+        repository: prismaAnalysisRepository,
+        cloudinary: createCloudinaryVideoStore(),
+        supabase: createSupabasePdfStore(),
+      },
+    );
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    if (error instanceof UploadRequestError) {
+    if (
+      error instanceof UploadRequestError ||
+      error instanceof DirectUploadError
+    ) {
       return errorResponse(error.code, error.message, error.statusCode);
     }
 
