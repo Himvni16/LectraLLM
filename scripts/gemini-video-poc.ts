@@ -4,13 +4,15 @@ import {
   GoogleGenAI,
   type File as GeminiFile,
 } from "@google/genai";
-import { stat } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { basename, extname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const MODEL = "gemini-3.8-flash";
 const PREVIEW_LENGTH = 1_000;
 const FILE_READY_POLL_INTERVAL_MS = 5_000;
 const FILE_READY_TIMEOUT_MS = 20 * 60 * 1_000;
+const OUTPUT_DIRECTORY = fileURLToPath(new URL("./output/", import.meta.url));
 
 const TRANSCRIPT_PROMPT = `Transcribe the spoken lecture content from this video accurately.
 Return only the transcript text.
@@ -162,6 +164,13 @@ async function main(): Promise<void> {
       throw new Error("Gemini returned an empty transcript.");
     }
 
+    await mkdir(OUTPUT_DIRECTORY, { recursive: true });
+    const transcriptPath = resolve(
+      OUTPUT_DIRECTORY,
+      `${basename(videoPath, extension)}.transcript.txt`,
+    );
+    await writeFile(transcriptPath, transcript, "utf8");
+
     console.log(`Upload and file processing: ${formatDuration(readyAt - uploadStartedAt)}`);
     console.log(`Transcript generation: ${formatDuration(completedAt - readyAt)}`);
     console.log(`Total processing time: ${formatDuration(completedAt - startedAt)}`);
@@ -170,6 +179,7 @@ async function main(): Promise<void> {
     console.log("---");
     console.log(transcript.slice(0, PREVIEW_LENGTH));
     console.log("---");
+    console.log(`Full transcript saved: ${transcriptPath}`);
   } catch (error) {
     throw new Error(
       `Gemini POC failed using ${MODEL}. No fallback model was attempted. ${errorMessage(error, apiKey)}`,

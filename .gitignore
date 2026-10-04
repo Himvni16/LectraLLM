@@ -36,6 +36,7 @@ temp/
 
 # Local development uploads
 storage/
+scripts/output/
 
 # IDE and operating-system noise
 .idea/

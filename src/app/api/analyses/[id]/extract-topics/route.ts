@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createAiTopicExtractionClient } from "@/lib/topic-extraction/ai-client";
+import { createGeminiTopicExtractionClient } from "@/lib/topic-extraction/gemini-client";
 import { prismaTopicExtractionRepository } from "@/lib/topic-extraction/repository";
 import {
   extractAnalysisTopics,
@@ -18,7 +18,7 @@ export async function POST(_request: Request, context: RouteContext) {
 
   try {
     const result = await extractAnalysisTopics(id, {
-      client: createAiTopicExtractionClient(),
+      client: createGeminiTopicExtractionClient(),
       repository: prismaTopicExtractionRepository,
     });
 

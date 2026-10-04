@@ -15,7 +15,7 @@ import { extractAnalysisPdf } from "@/lib/pdf-extraction/workflow";
 import { createAiTopicComparisonClient } from "@/lib/topic-comparison/ai-client";
 import { prismaTopicComparisonRepository } from "@/lib/topic-comparison/repository";
 import { compareAnalysisTopics } from "@/lib/topic-comparison/workflow";
-import { createAiTopicExtractionClient } from "@/lib/topic-extraction/ai-client";
+import { createGeminiTopicExtractionClient } from "@/lib/topic-extraction/gemini-client";
 import { prismaTopicExtractionRepository } from "@/lib/topic-extraction/repository";
 import { extractAnalysisTopics } from "@/lib/topic-extraction/workflow";
 import { createAiTranscriptionClient } from "@/lib/transcription/ai-client";
@@ -125,7 +125,7 @@ const productionDependencies: AnalysisPipelineDependencies = {
     }),
   extractTopics: (id) =>
     extractAnalysisTopics(id, {
-      client: createAiTopicExtractionClient(),
+      client: createGeminiTopicExtractionClient(),
       repository: prismaTopicExtractionRepository,
     }),
   compareTopics: (id) =>
