@@ -208,7 +208,7 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain(">MISSING</span>");
     expect(html).not.toContain('role="progressbar"');
     expect(html).toContain(
-      'class="min-w-0 break-words font-semibold text-zinc-950"',
+      'class="min-w-0 break-words font-medium text-zinc-800"',
     );
     expect(html).not.toContain(
       "Stored similarity and match category for each PDF topic, in PDF order.",
@@ -303,7 +303,7 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain(longCoverageName);
     expect(html).toContain(longExtractedName);
     expect(html).toContain(
-      'class="min-w-0 break-words font-semibold text-zinc-950"',
+      'class="min-w-0 break-words font-medium text-zinc-800"',
     );
     expect(html).toContain(
       'class="min-w-0 break-words leading-6 text-zinc-600"',
@@ -338,8 +338,12 @@ describe("analysis dashboard rendering", () => {
       /aria-selected="true"[^>]*id="dashboard-tab-sources"/,
     );
     expect(html).toContain('id="dashboard-panel-sources"');
-    expect(html).toContain(
-      "dashboard-panel border-b border-zinc-200 !pt-1 pb-6",
+    expect(html).toContain("dashboard-panel !pt-1 pb-6");
+    expect(html).not.toContain(
+      "divide-y divide-zinc-200 border-y border-zinc-200",
+    );
+    expect(html).not.toContain(
+      "Open either source when you need to inspect the extracted text.",
     );
     expect(html).not.toContain("Analysis Metadata");
     expect(html).not.toContain("Video filename");
@@ -390,6 +394,8 @@ describe("analysis dashboard rendering", () => {
     );
 
     expect(html).toContain("Retry Analysis");
+    expect(html).toContain("mt-6 w-fit disabled:cursor-wait");
+    expect(html).not.toContain("mt-6 w-full disabled:cursor-wait");
     expect(html).toContain("retry from where it stopped");
     expect(html).not.toContain("Retry transcription");
     expect(html).not.toContain("Retry PDF extraction");

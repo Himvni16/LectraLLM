@@ -363,7 +363,7 @@ function TopicCoverage({ topics }: { topics: DashboardTopicRow[] }) {
           {topics.map((topic) => (
             <li className="py-3" key={topic.pdfTopicId}>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-3">
-                <p className="min-w-0 break-words font-semibold text-zinc-950">
+                <p className="min-w-0 break-words font-medium text-zinc-800">
                   {topic.pdfTopicName}
                 </p>
                 <div className="flex items-center justify-between gap-3 sm:contents">
@@ -531,7 +531,7 @@ function SourceDetailsTab({ details }: { details: DashboardSourceDetails }) {
     <div>
       <section
         aria-labelledby="source-text-heading"
-        className="dashboard-panel border-b border-zinc-200 !pt-1 pb-6"
+        className="dashboard-panel !pt-1 pb-6"
       >
         <h2
           className="text-xl font-medium tracking-tight text-zinc-950"
@@ -539,10 +539,7 @@ function SourceDetailsTab({ details }: { details: DashboardSourceDetails }) {
         >
           Source Text
         </h2>
-        <p className="mt-2 text-sm text-zinc-600">
-          Open either source when you need to inspect the extracted text.
-        </p>
-        <div className="mt-6 divide-y divide-zinc-200 border-y border-zinc-200">
+        <div className="mt-6">
           <SourceTextDetails
             emptyMessage="No transcript has been generated yet."
             label="Lecture transcript"

@@ -182,7 +182,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
 
           {failed ? (
             <Button
-              className="mt-6 w-full disabled:cursor-wait"
+              className="mt-6 w-fit disabled:cursor-wait"
               disabled={isPipelineRequestActive}
               onClick={() => void startPipeline()}
               type="button"
