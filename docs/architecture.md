@@ -22,7 +22,7 @@ Implemented through Phase 7:
 - Provide the Prisma client boundary for future data access.
 - Render the `/upload` workflow and validate one video plus one PDF.
 - Store validated files locally and create an `UPLOADED` analysis record.
-- Resolve the database-controlled stored video and request transcription from FastAPI.
+- Revalidate the database-controlled Cloudinary video and request transcription directly from Gemini.
 - Persist the final transcript and advance the workflow to `EXTRACTING_PDF`.
 - Resolve the database-controlled stored PDF and request text extraction from FastAPI.
 - Persist the extracted PDF text and advance the workflow to `EXTRACTING_TOPICS`.
@@ -85,9 +85,9 @@ This local filesystem implementation has no external object-storage provider. A 
 
 ## Transcription boundary
 
-Browser requests identify only an analysis ID. Next.js loads that record, resolves and verifies its relative video path within `storage/videos/`, and sends the media bytes to FastAPI. Clients cannot submit filesystem paths to either transcription endpoint.
+Browser requests identify only an analysis ID. Next.js loads that record and revalidates its database-controlled Cloudinary public ID, authenticated delivery type, format, and size before transcription. Clients cannot supply download URLs or storage paths to the Gemini boundary.
 
-FastAPI streams the request to an operating-system temporary file, invokes a lazily loaded faster-whisper engine in a worker thread, returns structured transcription data, and removes the temporary file in all outcomes. PyAV supplies bundled FFmpeg libraries, so this path has no separate system FFmpeg dependency.
+Gemini's documented direct video-URL input supports YouTube, not arbitrary Cloudinary videos. Next.js therefore creates a short-lived authenticated Cloudinary download URL and streams the response into a resumable Gemini Files API upload without buffering the full video. It waits for the file to become active, sends the exact transcript-only prompt to the configured Gemini model, deletes the temporary Gemini file where supported, and returns the legacy TypeScript result shape with transcript text plus nullable metadata fields. Workflow status, persistence, failure, and retry behavior remain unchanged.
 
 ## PDF extraction boundary
 

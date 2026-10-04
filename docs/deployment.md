@@ -7,15 +7,16 @@ This guide describes a provider-neutral production deployment for the existing P
 Deploy these resources in a region with low network latency between them:
 
 1. **Next.js web service** — serves the UI and server routes, owns Prisma/database access, and orchestrates analysis stages.
-2. **FastAPI AI service** — performs transcription, PDF extraction, Gemini topic extraction, and local embedding comparison. It does not access PostgreSQL.
+2. **Gemini Developer API** — receives temporary Files API uploads for video transcription and performs the existing topic extraction and embedding calls.
 3. **PostgreSQL/Neon** — stores analyses, topics, matches, and workflow status.
 4. **Cloudinary Free** — stores lecture videos uploaded directly from the browser.
 5. **Supabase Storage Free** — stores PDFs in a private bucket.
 
 ```text
 Browser → Next.js → PostgreSQL/Neon
-              └──→ FastAPI → Gemini Developer API (topic extraction only)
-                         └──→ local Whisper and sentence-transformer models
+    ├──→ Cloudinary (authenticated lecture videos)
+    ├──→ Supabase Storage (private PDFs)
+    └──→ Gemini Developer API (transcription, topic extraction, embeddings)
 ```
 
 The FastAPI service should not be publicly callable unless network controls and an appropriate service-authentication layer are added in a separately scoped phase. If it is internal-only, `AI_SERVICE_URL` should use its private service URL.
@@ -37,10 +38,12 @@ Set these as server-side environment variables on the Next.js service:
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | Pooled Neon/PostgreSQL URL used by the runtime Neon serverless adapter |
 | `DIRECT_URL` | Yes for deployment operations | Direct, non-pooler URL used by Prisma CLI and migrations |
-| `AI_SERVICE_URL` | Yes | Internal base URL of the FastAPI service; do not append an endpoint path |
+| `AI_SERVICE_URL` | Yes for the retained health proxy | FastAPI base URL; production analysis stages do not use it |
+| `GEMINI_API_KEY` | Yes | Server-only Gemini Developer API key |
+| `GEMINI_TRANSCRIPTION_MODEL` | No | Video transcription model; default `gemini-3.8-flash` |
 | `VIDEO_MAX_SIZE_MB` | No | Upload limit in MiB; default `100` |
 | `PDF_MAX_SIZE_MB` | No | Upload limit in MiB; default `25` |
-| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | AI request timeout in seconds; default `1800` |
+| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Gemini video transfer, processing, and generation timeout; default `1800` |
 | `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary product-environment name |
 | `CLOUDINARY_API_KEY` | Yes | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Yes | Server-only Cloudinary API secret |
@@ -69,15 +72,15 @@ Set these only on the FastAPI service:
 | `TOPIC_CHUNK_CHARS` | No | Deterministic chunk size; default `12000` |
 | `EMBEDDING_MODEL` | No | Local sentence-transformer name/path |
 
-Never put `GEMINI_API_KEY` in the Next.js environment or send it to the browser. The checked-in example deliberately contains an empty placeholder.
+The production analysis pipeline requires `GEMINI_API_KEY` in the Next.js server environment. Never prefix it with `NEXT_PUBLIC_` or send it to the browser. The checked-in example contains only a placeholder.
 
 ## Provider storage and model caches
 
 Lecture videos are stored under generated Cloudinary public IDs and PDFs under generated paths in a private Supabase Storage bucket. PostgreSQL stores only those stable identifiers. The browser uploads directly to each provider, so Vercel does not proxy the 100 MB video or 25 MB PDF request bodies. Configure the Supabase bucket as private with a 25 MB file-size limit and `application/pdf` as its allowed MIME type.
 
-FastAPI streams incoming files to the operating system's temporary directory. That directory must be writable and can be ephemeral because temporary files are removed after each request.
+Before transcription, Next.js revalidates the Cloudinary asset's type, authenticated delivery mode, format, and configured 100 MiB limit. Because Gemini supports arbitrary uploaded files but not arbitrary external video URLs, Next.js creates a short-lived authenticated Cloudinary URL and streams it into a resumable Gemini Files API upload. It never creates a full in-memory video buffer. The temporary Gemini file is deleted after generation where supported.
 
-faster-whisper and sentence-transformers download model artifacts on first use. Give the AI service sufficient disk and memory. Persisting the standard Hugging Face cache is recommended to avoid repeated downloads after restarts; otherwise expect slower first requests and outbound network usage. Size CPU/GPU resources for the selected models and avoid excessive worker counts because each worker can load its own model copy.
+This server-to-server transfer is unavoidable with the documented Gemini video inputs and still consumes Vercel execution time and outbound bandwidth. Confirm the selected Vercel plan's function-duration and transfer constraints with a representative lecture before production rollout; this migration does not introduce a queue or background worker.
 
 ## Database setup and migrations
 

@@ -24,12 +24,10 @@ const analysis: TranscriptionAnalysis = {
 
 const transcription: AiTranscriptionResult = {
   text: "Today we will discuss deadlocks.",
-  language: "en",
-  durationSeconds: 6.2,
-  segments: [
-    { start: 0, end: 6.2, text: "Today we will discuss deadlocks." },
-  ],
-  model: "base",
+  language: null,
+  durationSeconds: null,
+  segments: [],
+  model: "gemini-3.8-flash",
 };
 
 function createRepository(
@@ -132,7 +130,33 @@ describe("analysis transcription workflow", () => {
     expect(JSON.stringify(result)).not.toContain("storage/videos");
   });
 
-  it("marks the analysis FAILED when the engine fails", async () => {
+  it("allows a FAILED transcription to retry through the same transition", async () => {
+    const repository = createRepository({
+      ...analysis,
+      status: AnalysisStatus.FAILED,
+    });
+    const client: TranscriptionClient = {
+      transcribe: vi.fn(async () => transcription),
+    };
+
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        repository,
+        videoLocator: createVideoLocator(),
+      }),
+    ).resolves.toMatchObject({
+      text: transcription.text,
+      status: AnalysisStatus.EXTRACTING_PDF,
+    });
+    expect(repository.claim).toHaveBeenCalledWith(analysis.id);
+    expect(repository.complete).toHaveBeenCalledWith(
+      analysis.id,
+      transcription.text,
+    );
+  });
+
+  it("marks the analysis FAILED when the Gemini provider fails", async () => {
     const repository = createRepository();
     const client: TranscriptionClient = {
       transcribe: vi.fn(async () => {

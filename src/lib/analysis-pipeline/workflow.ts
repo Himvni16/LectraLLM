@@ -18,7 +18,7 @@ import { compareAnalysisTopics } from "@/lib/topic-comparison/workflow";
 import { createGeminiTopicExtractionClient } from "@/lib/topic-extraction/gemini-client";
 import { prismaTopicExtractionRepository } from "@/lib/topic-extraction/repository";
 import { extractAnalysisTopics } from "@/lib/topic-extraction/workflow";
-import { createAiTranscriptionClient } from "@/lib/transcription/ai-client";
+import { createGeminiTranscriptionClient } from "@/lib/transcription/gemini-client";
 import { createCloudinaryVideoLocator } from "@/lib/transcription/media";
 import { prismaTranscriptionRepository } from "@/lib/transcription/repository";
 import { transcribeAnalysis } from "@/lib/transcription/workflow";
@@ -113,7 +113,7 @@ const productionDependencies: AnalysisPipelineDependencies = {
   repository: undefined as never,
   transcribe: (id) =>
     transcribeAnalysis(id, {
-      client: createAiTranscriptionClient(),
+      client: createGeminiTranscriptionClient(),
       repository: prismaTranscriptionRepository,
       videoLocator: createCloudinaryVideoLocator(),
     }),

@@ -17,7 +17,8 @@ Upload video + PDF → Transcribe → Extract PDF text → Extract VIDEO/PDF top
 
 - **Next.js + React + TypeScript + Tailwind CSS:** primary web application and Recharts-backed analysis dashboard at the repository root.
 - **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, best-match results, and overall similarity. Runtime queries use Prisma's Neon serverless adapter.
-- **FastAPI + Python:** isolated service under `ai-service/` that performs local faster-whisper transcription, PyMuPDF text extraction, Gemini-backed structured topic extraction, and local sentence-transformer comparison.
+- **Gemini Developer API:** server-side video transcription, structured topic extraction, and topic embeddings. Lecture videos are transferred from authenticated Cloudinary storage to the Gemini Files API before transcription.
+- **FastAPI + Python:** retained under `ai-service/` for legacy/local compatibility and its health endpoint; the production analysis pipeline no longer calls its transcription endpoint.
 
 See [docs/architecture.md](docs/architecture.md) for service responsibilities and [docs/deployment.md](docs/deployment.md) for a provider-neutral production checklist.
 
@@ -50,10 +51,12 @@ The web app reads `.env.local`, which is intentionally ignored by Git.
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | Pooled PostgreSQL URL used by application/runtime Prisma queries |
 | `DIRECT_URL` | Yes for Prisma CLI | Direct PostgreSQL URL used by migrations and administrative commands |
-| `AI_SERVICE_URL` | Yes | Base URL for the FastAPI service, normally `http://127.0.0.1:8000` |
+| `AI_SERVICE_URL` | Yes for legacy health proxy | Base URL used only by the retained FastAPI health proxy |
+| `GEMINI_API_KEY` | Yes | Server-only Gemini Developer API key |
+| `GEMINI_TRANSCRIPTION_MODEL` | No | Video transcription model; defaults to `gemini-3.8-flash` |
 | `VIDEO_MAX_SIZE_MB` | No | Lecture video limit in MiB; defaults to `100` |
 | `PDF_MAX_SIZE_MB` | No | Lecture PDF limit in MiB; defaults to `25` |
-| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Web-to-AI processing timeout currently shared by transcription and PDF extraction; defaults to `1800` seconds |
+| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Gemini Files upload, processing, and transcription timeout; defaults to `1800` seconds |
 | `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary Free product-environment name |
 | `CLOUDINARY_API_KEY` | Yes | Cloudinary public API key returned only with narrowly scoped upload signatures |
 | `CLOUDINARY_API_SECRET` | Yes | Server-only Cloudinary signing and Admin API secret |
@@ -137,7 +140,15 @@ After a successful upload, open `/analyses/<analysis-id>` or follow the **Open a
 UPLOADED → TRANSCRIBING → EXTRACTING_PDF
 ```
 
-Next.js resolves only the stored video attached to the selected `Analysis`, uploads its bytes to FastAPI `POST /transcribe`, and stores the returned full text in `Analysis.transcriptText`. FastAPI uses a temporary media file and removes it after success or failure. The original uploaded video remains unchanged.
+Next.js revalidates the authenticated Cloudinary asset attached to the selected `Analysis`, creates a short-lived signed download URL, and streams that response into a resumable Gemini Files API upload without buffering the full video in memory. Once Gemini marks the temporary file active, the configured `GEMINI_TRANSCRIPTION_MODEL` receives the video and the transcript-only prompt. The returned text is stored unchanged in `Analysis.transcriptText`; the Gemini temporary file is deleted on success or failure, and the original Cloudinary video remains unchanged.
+
+Gemini does not accept an arbitrary Cloudinary video URL as direct video input. YouTube URLs are the documented direct-URL video case, and URL Context does not support video, so the Files API transfer is required. The transfer and model call still execute inside the Next.js request path; Vercel function duration remains a deployment concern and is intentionally not solved by this migration.
+
+To smoke-test an already uploaded production-shaped asset without changing an analysis, run:
+
+```powershell
+node --conditions=react-server --import tsx scripts/gemini-cloudinary-transcription-poc.ts "lectrallm/videos/<uuid>"
+```
 
 If transcription fails, the analysis becomes `FAILED` and can be retried from the analysis page. Browser responses do not include internal storage or temporary paths.
 
@@ -199,7 +210,7 @@ With both running, the web-side proxy health endpoint is `http://localhost:3000/
 
 ## Production deployment
 
-LectraLLM needs three deployable resources: the Next.js web service, the FastAPI AI service, and PostgreSQL/Neon. The web service also requires a persistent disk for `storage/`; the AI service needs writable temporary space and should retain its Hugging Face model cache when practical. Configure secrets through the hosting platform, run checked-in migrations with `npx prisma migrate deploy`, and build the web application with Node.js 20.19+ (Node.js 22 LTS recommended).
+The production path uses the Next.js web service, PostgreSQL/Neon, Cloudinary, private Supabase Storage, and the Gemini Developer API. The retained FastAPI project is not called by production transcription and does not need to host faster-whisper for this path. Configure secrets through the hosting platform, run checked-in migrations with `npx prisma migrate deploy`, and build the web application with Node.js 20.19+ (Node.js 22 LTS recommended).
 
 The complete commands, environment variables, storage/model-cache considerations, health checks, and troubleshooting guidance are in [docs/deployment.md](docs/deployment.md). Phase 8 makes the repository deployment-ready but does not deploy it to a hosting provider.
 

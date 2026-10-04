@@ -23,6 +23,7 @@ export interface UploadLimits {
 }
 
 const DEFAULT_AI_TRANSCRIPTION_TIMEOUT_SECONDS = 1800;
+const DEFAULT_GEMINI_TRANSCRIPTION_MODEL = "gemini-3.8-flash";
 const DEFAULT_GEMINI_TOPIC_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_TOPIC_CHUNK_CHARS = 12_000;
 const MIN_TOPIC_CHUNK_CHARS = 1_000;
@@ -71,6 +72,21 @@ export function getAiServiceUrl(): string {
 
 export function getGeminiApiKey(): string {
   return requireServerEnv("GEMINI_API_KEY");
+}
+
+export function getGeminiTranscriptionModel(): string {
+  const configuredModel = process.env.GEMINI_TRANSCRIPTION_MODEL;
+
+  if (configuredModel === undefined) {
+    return DEFAULT_GEMINI_TRANSCRIPTION_MODEL;
+  }
+
+  const model = configuredModel.trim();
+  if (!model) {
+    throw new Error("GEMINI_TRANSCRIPTION_MODEL must not be blank.");
+  }
+
+  return model;
 }
 
 export function getGeminiTopicModel(): string {
@@ -231,6 +247,7 @@ export function validateServerEnv(): void {
   requireServerEnv("DATABASE_URL");
   getAiServiceUrl();
   getGeminiApiKey();
+  getGeminiTranscriptionModel();
   getGeminiTopicModel();
   getTopicChunkChars();
   getGeminiEmbeddingModel();

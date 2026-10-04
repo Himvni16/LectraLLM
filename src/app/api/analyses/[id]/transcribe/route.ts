@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createAiTranscriptionClient } from "@/lib/transcription/ai-client";
+import { createGeminiTranscriptionClient } from "@/lib/transcription/gemini-client";
 import { createCloudinaryVideoLocator } from "@/lib/transcription/media";
 import { prismaTranscriptionRepository } from "@/lib/transcription/repository";
 import {
@@ -19,7 +19,7 @@ export async function POST(_request: Request, context: RouteContext) {
 
   try {
     const result = await transcribeAnalysis(id, {
-      client: createAiTranscriptionClient(),
+      client: createGeminiTranscriptionClient(),
       repository: prismaTranscriptionRepository,
       videoLocator: createCloudinaryVideoLocator(),
     });

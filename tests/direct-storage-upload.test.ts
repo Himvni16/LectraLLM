@@ -65,7 +65,9 @@ function createMocks() {
       bytes: 21,
       secureUrl: "https://res.cloudinary.com/cloud/video/upload/lecture.mp4",
     })),
-    getBytes: vi.fn(async () => new Uint8Array(21)),
+    createSignedDownloadUrl: vi.fn(
+      () => "https://api.cloudinary.com/video/download?signed=true",
+    ),
     delete: vi.fn(async () => undefined),
   };
   const supabase: SupabasePdfStore = {
@@ -154,6 +156,25 @@ describe("Cloudinary and Supabase direct uploads", () => {
     });
     expect(authorization.signature).toMatch(/^[0-9a-f]{40}$/);
     expect(JSON.stringify(authorization)).not.toContain(config.apiSecret);
+  });
+
+  it("creates a short-lived authenticated Cloudinary video URL", () => {
+    const config: CloudinaryConfig = {
+      cloudName: "cloud",
+      apiKey: "api-key",
+      apiSecret: "never-expose-this",
+      uploadFolder: "lectrallm/videos",
+    };
+    const url = createCloudinaryVideoStore({ config }).createSignedDownloadUrl(
+      publicId,
+      "mp4",
+      300,
+    );
+
+    expect(url).toContain("/video/download");
+    expect(url).toContain("expires_at=");
+    expect(url).toContain("signature=");
+    expect(url).not.toContain(config.apiSecret);
   });
 
   it("authorizes only generated Cloudinary and Supabase paths", async () => {

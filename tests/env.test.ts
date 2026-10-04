@@ -6,6 +6,7 @@ import {
   getGeminiApiKey,
   getGeminiEmbeddingDimensions,
   getGeminiEmbeddingModel,
+  getGeminiTranscriptionModel,
   getGeminiTopicModel,
   getCloudinaryConfig,
   getSupabaseStorageConfig,
@@ -22,6 +23,8 @@ const originalPdfMaxSize = process.env.PDF_MAX_SIZE_MB;
 const originalTranscriptionTimeout =
   process.env.AI_TRANSCRIPTION_TIMEOUT_SECONDS;
 const originalGeminiApiKey = process.env.GEMINI_API_KEY;
+const originalGeminiTranscriptionModel =
+  process.env.GEMINI_TRANSCRIPTION_MODEL;
 const originalGeminiTopicModel = process.env.GEMINI_TOPIC_MODEL;
 const originalTopicChunkChars = process.env.TOPIC_CHUNK_CHARS;
 const originalGeminiEmbeddingModel = process.env.GEMINI_EMBEDDING_MODEL;
@@ -75,6 +78,12 @@ afterEach(() => {
     delete process.env.GEMINI_API_KEY;
   } else {
     process.env.GEMINI_API_KEY = originalGeminiApiKey;
+  }
+
+  if (originalGeminiTranscriptionModel === undefined) {
+    delete process.env.GEMINI_TRANSCRIPTION_MODEL;
+  } else {
+    process.env.GEMINI_TRANSCRIPTION_MODEL = originalGeminiTranscriptionModel;
   }
 
   if (originalGeminiTopicModel === undefined) {
@@ -165,6 +174,19 @@ describe("server environment validation", () => {
     process.env.TOPIC_CHUNK_CHARS = "24000";
     expect(getGeminiTopicModel()).toBe("gemini-custom-flash");
     expect(getTopicChunkChars()).toBe(24_000);
+  });
+
+  it("provides and validates the Gemini transcription model", () => {
+    delete process.env.GEMINI_TRANSCRIPTION_MODEL;
+    expect(getGeminiTranscriptionModel()).toBe("gemini-3.8-flash");
+
+    process.env.GEMINI_TRANSCRIPTION_MODEL = "gemini-video-custom";
+    expect(getGeminiTranscriptionModel()).toBe("gemini-video-custom");
+
+    process.env.GEMINI_TRANSCRIPTION_MODEL = "  ";
+    expect(() => getGeminiTranscriptionModel()).toThrow(
+      "GEMINI_TRANSCRIPTION_MODEL must not be blank.",
+    );
   });
 
   it("rejects invalid Gemini topic configuration", () => {

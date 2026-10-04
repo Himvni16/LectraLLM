@@ -28,13 +28,16 @@ export interface CloudinaryVideoStore {
     timestamp: number,
   ): CloudinaryUploadAuthorization;
   inspect(publicId: string): Promise<CloudinaryVideoMetadata>;
-  getBytes(publicId: string, maxSizeBytes: number): Promise<Uint8Array>;
+  createSignedDownloadUrl(
+    publicId: string,
+    format: string,
+    expiresInSeconds?: number,
+  ): string;
   delete(publicId: string): Promise<void>;
 }
 
 interface CloudinaryVideoStoreOptions {
   config?: CloudinaryConfig;
-  fetchImpl?: typeof fetch;
 }
 
 function configuredCloudinary(config: CloudinaryConfig) {
@@ -79,7 +82,6 @@ export function createCloudinaryVideoStore(
 ): CloudinaryVideoStore {
   const config = options.config ?? getCloudinaryConfig();
   const client = configuredCloudinary(config);
-  const fetchImpl = options.fetchImpl ?? fetch;
 
   return {
     authorizeUpload(publicId, timestamp) {
@@ -110,41 +112,12 @@ export function createCloudinaryVideoStore(
       return readMetadata(result, publicId);
     },
 
-    async getBytes(publicId, maxSizeBytes) {
-      const metadata = await this.inspect(publicId);
-      if (metadata.bytes <= 0 || metadata.bytes > maxSizeBytes) {
-        throw new Error("Cloudinary video size is outside the allowed range.");
-      }
-
-      const downloadUrl = client.utils.private_download_url(
-        publicId,
-        metadata.format,
-        {
-          resource_type: "video",
-          type: "authenticated",
-          expires_at: Math.floor(Date.now() / 1000) + 5 * 60,
-        },
-      );
-      const response = await fetchImpl(downloadUrl, {
-        cache: "no-store",
+    createSignedDownloadUrl(publicId, format, expiresInSeconds = 5 * 60) {
+      return client.utils.private_download_url(publicId, format, {
+        resource_type: "video",
+        type: "authenticated",
+        expires_at: Math.floor(Date.now() / 1000) + expiresInSeconds,
       });
-      if (!response.ok) {
-        throw new Error(`Cloudinary video download returned HTTP ${response.status}.`);
-      }
-      const contentLength = Number(response.headers.get("content-length"));
-      if (
-        Number.isFinite(contentLength) &&
-        contentLength > 0 &&
-        contentLength !== metadata.bytes
-      ) {
-        throw new Error("Cloudinary video body does not match its metadata.");
-      }
-
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.byteLength !== metadata.bytes || bytes.byteLength > maxSizeBytes) {
-        throw new Error("Cloudinary video body does not match its metadata.");
-      }
-      return bytes;
     },
 
     async delete(publicId) {
