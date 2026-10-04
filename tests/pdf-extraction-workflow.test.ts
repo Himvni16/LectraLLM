@@ -180,7 +180,7 @@ describe("analysis PDF extraction workflow", () => {
     expect(result.status).toBe(AnalysisStatus.EXTRACTING_TOPICS);
   });
 
-  it("preserves the safe no-text error returned by the extraction service", async () => {
+  it("preserves the safe no-text error returned by the PDF parser", async () => {
     const repository = createRepository();
 
     await expect(

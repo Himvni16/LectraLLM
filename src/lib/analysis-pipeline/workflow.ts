@@ -8,7 +8,7 @@ import {
   type AnalysisPipelineStage,
   type AnalysisResumeSnapshot,
 } from "@/lib/analysis-pipeline/resume";
-import { createAiPdfExtractionClient } from "@/lib/pdf-extraction/ai-client";
+import { createPdfExtractionClient } from "@/lib/pdf-extraction/client";
 import { createStoredPdfLocator } from "@/lib/pdf-extraction/media";
 import { prismaPdfExtractionRepository } from "@/lib/pdf-extraction/repository";
 import { extractAnalysisPdf } from "@/lib/pdf-extraction/workflow";
@@ -119,7 +119,7 @@ const productionDependencies: AnalysisPipelineDependencies = {
     }),
   extractPdf: (id) =>
     extractAnalysisPdf(id, {
-      client: createAiPdfExtractionClient(),
+      client: createPdfExtractionClient(),
       repository: prismaPdfExtractionRepository,
       pdfLocator: createStoredPdfLocator(),
     }),

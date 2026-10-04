@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createAiPdfExtractionClient } from "@/lib/pdf-extraction/ai-client";
+import { createPdfExtractionClient } from "@/lib/pdf-extraction/client";
 import { createStoredPdfLocator } from "@/lib/pdf-extraction/media";
 import { prismaPdfExtractionRepository } from "@/lib/pdf-extraction/repository";
 import {
@@ -19,7 +19,7 @@ export async function POST(_request: Request, context: RouteContext) {
 
   try {
     const result = await extractAnalysisPdf(id, {
-      client: createAiPdfExtractionClient(),
+      client: createPdfExtractionClient(),
       repository: prismaPdfExtractionRepository,
       pdfLocator: createStoredPdfLocator(),
     });
