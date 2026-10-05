@@ -36,9 +36,11 @@ if (!Array.isArray(input.videoTopics) || !Array.isArray(input.pdfTopics)) {
   );
 }
 
-const { createGeminiTopicComparisonClient, cosineSimilarity } = await import(
-  "../src/lib/topic-comparison/gemini-client"
-);
+const {
+  classifySimilarity,
+  createGeminiTopicComparisonClient,
+  scoreTopicPair,
+} = await import("../src/lib/topic-comparison/gemini-client");
 
 const model = process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-2";
 const dimensions = Number(process.env.GEMINI_EMBEDDING_DIMENSIONS ?? 768);
@@ -61,12 +63,6 @@ const result = await createGeminiTopicComparisonClient({
 const processingTimeMs = Math.round(performance.now() - startedAt);
 const videoVectors = vectors.slice(0, input.videoTopics.length);
 const pdfVectors = vectors.slice(input.videoTopics.length);
-const videoTopicById = new Map(
-  input.videoTopics.map((topic) => [topic.id, topic.name] as const),
-);
-const pdfTopicById = new Map(
-  input.pdfTopics.map((topic) => [topic.id, topic.name] as const),
-);
 const overallScore = result.matches
   .reduce(
     (total, match) => total.plus(match.similarityScore.toString()),
@@ -76,17 +72,107 @@ const overallScore = result.matches
   .times(100)
   .toNumber();
 
-console.log("Similarity matrix");
-for (const [pdfIndex, pdfTopic] of input.pdfTopics.entries()) {
-  console.log(`\nPDF: ${pdfTopic.name}`);
-  for (const [videoIndex, videoTopic] of input.videoTopics.entries()) {
-    console.log(
-      `  ${videoTopic.name}: ${cosineSimilarity(pdfVectors[pdfIndex], videoVectors[videoIndex]).toFixed(4)}`,
-    );
-  }
+interface CandidateMatch {
+  pdfTopic: string;
+  videoTopic: string;
+  semanticSimilarity: number;
+  lexicalOverlap: number;
+  hybridScore: number;
+  matchType: ReturnType<typeof classifySimilarity>;
 }
 
-console.log("\nBest matches");
+function evaluateCandidate(
+  score: (semanticSimilarity: number, lexicalOverlap: number) => number,
+) {
+  const matches: CandidateMatch[] = [];
+
+  for (const [pdfIndex, pdfTopic] of input.pdfTopics.entries()) {
+    let bestVideoIndex = 0;
+    let bestPair = scoreTopicPair(
+      pdfTopic.name,
+      input.videoTopics[0].name,
+      pdfVectors[pdfIndex],
+      videoVectors[0],
+    );
+    let bestHybridScore = score(
+      bestPair.semanticSimilarity,
+      bestPair.lexicalOverlap,
+    );
+
+    for (
+      let videoIndex = 1;
+      videoIndex < input.videoTopics.length;
+      videoIndex += 1
+    ) {
+      const pair = scoreTopicPair(
+        pdfTopic.name,
+        input.videoTopics[videoIndex].name,
+        pdfVectors[pdfIndex],
+        videoVectors[videoIndex],
+      );
+      const hybridScore = score(
+        pair.semanticSimilarity,
+        pair.lexicalOverlap,
+      );
+      if (hybridScore > bestHybridScore) {
+        bestVideoIndex = videoIndex;
+        bestPair = pair;
+        bestHybridScore = hybridScore;
+      }
+    }
+
+    matches.push({
+      pdfTopic: pdfTopic.name,
+      videoTopic: input.videoTopics[bestVideoIndex].name,
+      semanticSimilarity: bestPair.semanticSimilarity,
+      lexicalOverlap: bestPair.lexicalOverlap,
+      hybridScore: bestHybridScore,
+      matchType: classifySimilarity(bestHybridScore),
+    });
+  }
+
+  const distribution = Object.fromEntries(
+    ["STRONG", "PARTIAL", "WEAK", "MISSING"].map((matchType) => [
+      matchType,
+      matches.filter((match) => match.matchType === matchType).length,
+    ]),
+  );
+  const candidateOverallScore =
+    (matches.reduce((total, match) => total + match.hybridScore, 0) /
+      matches.length) *
+    100;
+
+  return { matches, overallScore: candidateOverallScore, distribution };
+}
+
+const candidates = {
+  "A: 0.75 semantic + 0.25 lexical": evaluateCandidate(
+    (semanticSimilarity, lexicalOverlap) =>
+      0.75 * semanticSimilarity + 0.25 * lexicalOverlap,
+  ),
+  "B: 0.70 semantic + 0.30 lexical": evaluateCandidate(
+    (semanticSimilarity, lexicalOverlap) =>
+      0.7 * semanticSimilarity + 0.3 * lexicalOverlap,
+  ),
+  "C: semantic × (0.75 + 0.25 lexical)": evaluateCandidate(
+    (semanticSimilarity, lexicalOverlap) =>
+      semanticSimilarity * (0.75 + 0.25 * lexicalOverlap),
+  ),
+};
+
+console.log("Candidate formula results");
+for (const [candidateName, candidate] of Object.entries(candidates)) {
+  console.log(
+    JSON.stringify({
+      candidate: candidateName,
+      overallScore: candidate.overallScore,
+      distribution: candidate.distribution,
+    }),
+  );
+}
+
+console.log("\nChosen hybrid matches");
+const chosenCandidate = candidates["A: 0.75 semantic + 0.25 lexical"];
 
 console.log(
   JSON.stringify(
@@ -96,15 +182,7 @@ console.log(
       geminiRequestCount,
       processingTimeMs,
       overallScore,
-      matches: result.matches.map((match) => ({
-        pdfTopic: pdfTopicById.get(match.pdfTopicId),
-        videoTopic:
-          match.videoTopicId === null
-            ? null
-            : videoTopicById.get(match.videoTopicId),
-        similarity: match.similarityScore,
-        matchType: match.matchType,
-      })),
+      matches: chosenCandidate.matches,
     },
     null,
     2,

@@ -8,6 +8,9 @@ import {
   cosineSimilarity,
   createGeminiTopicComparisonClient,
   GEMINI_EMBEDDING_TASK_TYPE,
+  hybridTopicSimilarity,
+  lexicalTopicOverlap,
+  scoreTopicPair,
 } from "@/lib/topic-comparison/gemini-client";
 
 const videoTopics = [
@@ -71,6 +74,97 @@ describe("Gemini topic comparison client", () => {
     expect(classifySimilarity(similarity)).toBe(expected);
   });
 
+  it("gives identical topics maximum lexical and hybrid scores", () => {
+    const score = scoreTopicPair(
+      "PDF Content Processing",
+      "PDF Content Processing",
+      [1, 2],
+      [1, 2],
+    );
+
+    expect(score).toEqual({
+      semanticSimilarity: 1,
+      lexicalOverlap: 1,
+      hybridSimilarity: 1,
+    });
+    expect(classifySimilarity(score.hybridSimilarity)).toBe(MatchType.STRONG);
+  });
+
+  it("penalizes Semantic Analysis versus Sentiment Analysis", () => {
+    const lexicalOverlap = lexicalTopicOverlap(
+      "Semantic Analysis",
+      "Sentiment Analysis",
+    );
+    const hybridSimilarity = hybridTopicSimilarity(0.8488, lexicalOverlap);
+
+    expect(lexicalOverlap).toBeCloseTo(1 / 3);
+    expect(hybridSimilarity).toBeCloseTo(0.7199, 4);
+    expect(classifySimilarity(hybridSimilarity)).toBe(MatchType.PARTIAL);
+  });
+
+  it("penalizes Video Content Analysis versus Content Correlation Analysis", () => {
+    const lexicalOverlap = lexicalTopicOverlap(
+      "Video Content Analysis",
+      "Content Correlation Analysis",
+    );
+    const hybridSimilarity = hybridTopicSimilarity(0.7755, lexicalOverlap);
+
+    expect(lexicalOverlap).toBe(0.5);
+    expect(hybridSimilarity).toBeCloseTo(0.7066, 4);
+    expect(classifySimilarity(hybridSimilarity)).toBe(MatchType.PARTIAL);
+  });
+
+  it("keeps exact technical multiword concepts strong", () => {
+    for (const topicName of [
+      "Learning Management System",
+      "Audio Transcription",
+      "Video-PDF Content Matching",
+    ]) {
+      const score = scoreTopicPair(topicName, topicName, [1, 0], [1, 0]);
+      expect(score.hybridSimilarity).toBe(1);
+      expect(classifySimilarity(score.hybridSimilarity)).toBe(
+        MatchType.STRONG,
+      );
+    }
+  });
+
+  it("normalizes topic punctuation and case for lexical overlap", () => {
+    expect(
+      lexicalTopicOverlap(
+        "VIDEO—PDF Content-Matching!",
+        "video pdf content matching",
+      ),
+    ).toBe(1);
+  });
+
+  it("ignores generic stop words without removing technical terms", () => {
+    expect(
+      lexicalTopicOverlap(
+        "Analysis of Video and PDF Content",
+        "Video PDF Content Analysis",
+      ),
+    ).toBe(1);
+    expect(lexicalTopicOverlap("Semantic Analysis", "Sentiment Analysis")).toBe(
+      1 / 3,
+    );
+    expect(
+      lexicalTopicOverlap("Coverage Validation", "Correlation Analysis"),
+    ).toBe(0);
+    for (const technicalToken of [
+      "video",
+      "pdf",
+      "semantic",
+      "sentiment",
+      "transcription",
+      "correlation",
+      "validation",
+      "coverage",
+      "analysis",
+    ]) {
+      expect(lexicalTopicOverlap(technicalToken, technicalToken)).toBe(1);
+    }
+  });
+
   it("embeds VIDEO then PDF names sequentially and maps vectors to their topics", async () => {
     const embedContent = createEmbeddingMock([
       [1, 0],
@@ -105,27 +199,24 @@ describe("Gemini topic comparison client", () => {
         }),
       });
     }
-    expect(result).toEqual({
-      matches: [
-        {
-          pdfTopicId: "pdf-1",
-          videoTopicId: "video-1",
-          similarityScore: 0.8,
-          matchType: MatchType.STRONG,
-        },
-        {
-          pdfTopicId: "pdf-2",
-          videoTopicId: "video-2",
-          similarityScore: 0.8,
-          matchType: MatchType.STRONG,
-        },
-        {
-          pdfTopicId: "pdf-3",
-          videoTopicId: null,
-          similarityScore: 0,
-          matchType: MatchType.MISSING,
-        },
-      ],
+    expect(result.matches).toHaveLength(3);
+    expect(result.matches[0]).toMatchObject({
+      pdfTopicId: "pdf-1",
+      videoTopicId: "video-1",
+      matchType: MatchType.PARTIAL,
+    });
+    expect(result.matches[0]?.similarityScore).toBeCloseTo(0.6);
+    expect(result.matches[1]).toMatchObject({
+      pdfTopicId: "pdf-2",
+      videoTopicId: "video-2",
+      matchType: MatchType.PARTIAL,
+    });
+    expect(result.matches[1]?.similarityScore).toBeCloseTo(0.6833333333);
+    expect(result.matches[2]).toEqual({
+      pdfTopicId: "pdf-3",
+      videoTopicId: null,
+      similarityScore: 0,
+      matchType: MatchType.MISSING,
     });
   });
 
@@ -143,9 +234,11 @@ describe("Gemini topic comparison client", () => {
     expect(result.matches[0]).toMatchObject({
       pdfTopicId: "pdf-1",
       videoTopicId: "video-1",
-      matchType: MatchType.PARTIAL,
+      matchType: MatchType.WEAK,
     });
-    expect(result.matches[0]?.similarityScore).toBeCloseTo(Math.SQRT1_2);
+    expect(result.matches[0]?.similarityScore).toBeCloseTo(
+      0.75 * Math.SQRT1_2,
+    );
   });
 
   it.each([

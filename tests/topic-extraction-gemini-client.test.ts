@@ -15,7 +15,7 @@ const TEST_OPTIONS = {
 };
 
 const SHARED_TOPIC_NAMING_GUIDANCE =
-  "Preserve meaningful technical terminology and use concise, standalone topic names that state the actual subject or concept represented. Do not return generic section labels such as Introduction, Conclusion, Summary, Overview, Problem Statement, Project Objective, or Process / Workflow by themselves. When a section uses a generic label, name its substantive topic using only information present in the source text. Avoid duplicates and do not invent concepts.";
+  "Each topic must represent one primary concept, feature, process, technique, or subject.";
 
 describe("Gemini topic extraction client", () => {
   it("sends a short VIDEO source with source-specific and shared naming guidance", async () => {
@@ -59,6 +59,125 @@ describe("Gemini topic extraction client", () => {
     expect(
       generateContent.mock.calls[0]?.[0].config?.systemInstruction,
     ).toEqual(expect.stringContaining(SHARED_TOPIC_NAMING_GUIDANCE));
+  });
+
+  it("requires compound concepts to be separated into atomic topics", async () => {
+    const generateContent = vi.fn(
+      async (parameters: GenerateContentParameters) => {
+        void parameters;
+        return {
+          text: JSON.stringify({
+            topics: [
+              { name: "Video Analysis", confidence: 0.9 },
+              { name: "Audio Transcription", confidence: 0.9 },
+            ],
+          }),
+        };
+      },
+    );
+
+    const result = await createGeminiTopicExtractionClient({
+      ...TEST_OPTIONS,
+      generateContent,
+    }).extract(
+      "The system performs video analysis and audio transcription.",
+      TopicSource.VIDEO,
+    );
+    const instruction =
+      generateContent.mock.calls[0]?.[0].config?.systemInstruction;
+
+    expect(instruction).toContain(
+      "Do not combine multiple independently meaningful concepts into one topic",
+    );
+    expect(instruction).toContain(
+      "return them as separate topics",
+    );
+    expect(instruction).toContain(
+      "Video Analysis; Audio Transcription",
+    );
+    expect(instruction).toContain(
+      "PDF Content Processing; Semantic Analysis",
+    );
+    expect(instruction).toContain(
+      "Student Engagement Analysis; Sentiment Analysis",
+    );
+    expect(result.topics.map((topic) => topic.name)).toEqual([
+      "Video Analysis",
+      "Audio Transcription",
+    ]);
+  });
+
+  it("preserves established technical multiword concepts", async () => {
+    const generateContent = vi.fn(
+      async (parameters: GenerateContentParameters) => {
+        void parameters;
+        return {
+          text: JSON.stringify({
+            topics: [
+              { name: "Learning Management System", confidence: 0.95 },
+              { name: "Natural Language Processing", confidence: 0.9 },
+              { name: "Large Language Model", confidence: 0.9 },
+            ],
+          }),
+        };
+      },
+    );
+
+    const result = await createGeminiTopicExtractionClient({
+      ...TEST_OPTIONS,
+      generateContent,
+    }).extract("Technical source", TopicSource.PDF);
+    const instruction =
+      generateContent.mock.calls[0]?.[0].config?.systemInstruction;
+
+    expect(instruction).toContain(
+      "Do not split concepts that are inherently one established term",
+    );
+    expect(result.topics.map((topic) => topic.name)).toEqual([
+      "Learning Management System",
+      "Natural Language Processing",
+      "Large Language Model",
+    ]);
+  });
+
+  it("keeps generic labels grounded and disallows them by themselves", async () => {
+    const generateContent = vi.fn(
+      async (parameters: GenerateContentParameters) => {
+        void parameters;
+        return {
+          text: JSON.stringify({
+            topics: [
+              {
+                name: "Lecture-PDF Content Validation Problem",
+                confidence: 0.9,
+              },
+            ],
+          }),
+        };
+      },
+    );
+
+    await createGeminiTopicExtractionClient({
+      ...TEST_OPTIONS,
+      generateContent,
+    }).extract("Problem statement about content validation", TopicSource.PDF);
+    const instruction =
+      generateContent.mock.calls[0]?.[0].config?.systemInstruction;
+
+    for (const label of [
+      "Introduction",
+      "Conclusion",
+      "Summary",
+      "Overview",
+      "Problem Statement",
+      "Project Objective",
+    ]) {
+      expect(instruction).toContain(label);
+    }
+    expect(instruction).toContain(
+      "using only information present in the source text",
+    );
+    expect(instruction).toContain("do not invent concepts");
   });
 
   it("uses the PDF-specific instruction without changing the output contract", async () => {
@@ -126,14 +245,14 @@ describe("Gemini topic extraction client", () => {
     const responses = [
       {
         topics: [
-          { name: "  Deadlocks. ", confidence: 0.4 },
-          { name: "Scheduling", confidence: null },
+          { name: "  Audio Transcription. ", confidence: 0.4 },
+          { name: "Video Analysis", confidence: null },
         ],
       },
       {
         topics: [
-          { name: "deadlocks!!!", confidence: 0.91 },
-          { name: "Memory Management", confidence: 0.8 },
+          { name: "audio transcription!!!", confidence: 0.91 },
+          { name: "Semantic Analysis", confidence: 0.8 },
         ],
       },
     ];
@@ -149,16 +268,16 @@ describe("Gemini topic extraction client", () => {
       maxChunkChars: 40,
       generateContent,
     }).extract(
-      "Deadlocks are discussed.\n\nMemory management is discussed.",
+      "Audio transcription is discussed.\n\nSemantic analysis is discussed.",
       TopicSource.VIDEO,
     );
 
     expect(generateContent).toHaveBeenCalledTimes(2);
     expect(result).toEqual({
       topics: [
-        { name: "Deadlocks", confidence: 0.91 },
-        { name: "Scheduling", confidence: null },
-        { name: "Memory Management", confidence: 0.8 },
+        { name: "Audio Transcription", confidence: 0.91 },
+        { name: "Video Analysis", confidence: null },
+        { name: "Semantic Analysis", confidence: 0.8 },
       ],
     });
   });
@@ -166,13 +285,18 @@ describe("Gemini topic extraction client", () => {
   it("keeps duplicate merging literal rather than semantic", () => {
     expect(
       mergeTopicResults([
-        { topics: [{ name: "Operating Systems", confidence: 0.9 }] },
-        { topics: [{ name: "OS Concepts", confidence: 0.8 }] },
+        { topics: [{ name: "Audio Transcription", confidence: 0.9 }] },
+        {
+          topics: [
+            { name: "audio transcription", confidence: 0.8 },
+            { name: "Speech Audio Transcription", confidence: 0.85 },
+          ],
+        },
       ]),
     ).toEqual({
       topics: [
-        { name: "Operating Systems", confidence: 0.9 },
-        { name: "OS Concepts", confidence: 0.8 },
+        { name: "Audio Transcription", confidence: 0.9 },
+        { name: "Speech Audio Transcription", confidence: 0.85 },
       ],
     });
   });

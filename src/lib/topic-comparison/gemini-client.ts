@@ -21,6 +21,17 @@ export const STRONG_SIMILARITY_THRESHOLD = 0.75;
 export const PARTIAL_SIMILARITY_THRESHOLD = 0.55;
 export const WEAK_SIMILARITY_THRESHOLD = 0.35;
 export const GEMINI_EMBEDDING_TASK_TYPE = "SEMANTIC_SIMILARITY";
+export const SEMANTIC_SIMILARITY_WEIGHT = 0.75;
+export const LEXICAL_OVERLAP_WEIGHT = 0.25;
+
+const TOPIC_STOP_WORDS = new Set([
+  "and",
+  "the",
+  "of",
+  "in",
+  "for",
+  "between",
+]);
 
 interface GeminiEmbeddingResponse {
   readonly embeddings?: readonly {
@@ -80,6 +91,71 @@ export function classifySimilarity(similarity: number): MatchType {
   if (similarity >= PARTIAL_SIMILARITY_THRESHOLD) return MatchType.PARTIAL;
   if (similarity >= WEAK_SIMILARITY_THRESHOLD) return MatchType.WEAK;
   return MatchType.MISSING;
+}
+
+function normalizedTopicTokens(topicName: string): Set<string> {
+  return new Set(
+    topicName
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim()
+      .split(/\s+/u)
+      .filter((token) => token.length > 0 && !TOPIC_STOP_WORDS.has(token)),
+  );
+}
+
+export function lexicalTopicOverlap(
+  leftTopicName: string,
+  rightTopicName: string,
+): number {
+  const leftTokens = normalizedTopicTokens(leftTopicName);
+  const rightTokens = normalizedTopicTokens(rightTopicName);
+  const union = new Set([...leftTokens, ...rightTokens]);
+
+  if (union.size === 0) return 0;
+
+  let intersectionSize = 0;
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) intersectionSize += 1;
+  }
+
+  return intersectionSize / union.size;
+}
+
+export function hybridTopicSimilarity(
+  semanticSimilarity: number,
+  lexicalOverlap: number,
+): number {
+  const hybridSimilarity =
+    SEMANTIC_SIMILARITY_WEIGHT * semanticSimilarity +
+    LEXICAL_OVERLAP_WEIGHT * lexicalOverlap;
+  return Math.max(0, Math.min(1, hybridSimilarity));
+}
+
+export interface TopicPairScore {
+  semanticSimilarity: number;
+  lexicalOverlap: number;
+  hybridSimilarity: number;
+}
+
+export function scoreTopicPair(
+  leftTopicName: string,
+  rightTopicName: string,
+  leftVector: readonly number[],
+  rightVector: readonly number[],
+): TopicPairScore {
+  const semanticSimilarity = cosineSimilarity(leftVector, rightVector);
+  const lexicalOverlap = lexicalTopicOverlap(leftTopicName, rightTopicName);
+
+  return {
+    semanticSimilarity,
+    lexicalOverlap,
+    hybridSimilarity: hybridTopicSimilarity(
+      semanticSimilarity,
+      lexicalOverlap,
+    ),
+  };
 }
 
 function validateTopics(
@@ -160,25 +236,32 @@ export function compareTopicVectors(
     (pdfTopic, pdfIndex) => {
       const pdfVector = pdfVectors[pdfIndex];
       let bestIndex = 0;
-      let bestSimilarity = cosineSimilarity(pdfVector, videoVectors[0]);
+      let bestScore = scoreTopicPair(
+        pdfTopic.name,
+        videoTopics[0].name,
+        pdfVector,
+        videoVectors[0],
+      );
 
       for (let videoIndex = 1; videoIndex < videoTopics.length; videoIndex += 1) {
-        const similarity = cosineSimilarity(
+        const score = scoreTopicPair(
+          pdfTopic.name,
+          videoTopics[videoIndex].name,
           pdfVector,
           videoVectors[videoIndex],
         );
-        if (similarity > bestSimilarity) {
+        if (score.hybridSimilarity > bestScore.hybridSimilarity) {
           bestIndex = videoIndex;
-          bestSimilarity = similarity;
+          bestScore = score;
         }
       }
 
-      const matchType = classifySimilarity(bestSimilarity);
+      const matchType = classifySimilarity(bestScore.hybridSimilarity);
       return {
         pdfTopicId: pdfTopic.id,
         videoTopicId:
           matchType === MatchType.MISSING ? null : videoTopics[bestIndex].id,
-        similarityScore: bestSimilarity,
+        similarityScore: bestScore.hybridSimilarity,
         matchType,
       };
     },

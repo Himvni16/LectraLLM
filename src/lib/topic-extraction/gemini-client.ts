@@ -277,8 +277,23 @@ function topicInstructions(source: TopicSource): string {
   return (
     "You extract distinct academic topics from source material. " +
     `${sourceInstruction} ` +
-    "Preserve meaningful technical terminology and use concise, standalone " +
-    "topic names that state the actual subject or concept represented. Do not " +
+    "Each topic must represent one primary concept, feature, process, technique, " +
+    "or subject. Do not combine multiple independently meaningful concepts into " +
+    "one topic using 'and', '/', commas, or compound umbrella labels. If a " +
+    "passage discusses multiple distinct concepts, return them as separate " +
+    "topics. Keep topic names concise but specific enough to stand alone, and " +
+    "preserve meaningful technical terminology. Do not split concepts that are " +
+    "inherently one established term, such as Learning Management System, " +
+    "Natural Language Processing, or Large Language Model. For example, return " +
+    "Video Analysis and Audio Transcription as two topics: Video Analysis; Audio " +
+    "Transcription. Return PDF Content Processing and Semantic Analysis as two " +
+    "topics: PDF Content Processing; Semantic Analysis. Return Student Engagement " +
+    "Analysis and Sentiment Analysis as two topics: Student Engagement Analysis; " +
+    "Sentiment Analysis. When independently discussed, return Content Matching " +
+    "and Correlation Analysis Between Video and PDF as Video-PDF Content Matching; " +
+    "Content Correlation Analysis. Avoid duplicate topics, trivial wording " +
+    "variants, and overly granular fragments that are not meaningful standalone " +
+    "concepts. Do not " +
     "return generic section labels such as Introduction, Conclusion, Summary, " +
     "Overview, Problem Statement, Project Objective, or Process / Workflow by " +
     "themselves. When a section uses a generic label, name its substantive " +
