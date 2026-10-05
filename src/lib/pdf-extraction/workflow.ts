@@ -28,6 +28,7 @@ export class PdfExtractionWorkflowError extends Error {
 
 interface PdfExtractionWorkflowDependencies {
   client: PdfExtractionClient;
+  leaseToken: string;
   repository: PdfExtractionRepository;
   pdfLocator: PdfLocator;
 }
@@ -66,7 +67,7 @@ export async function extractAnalysisPdf(
       analysis.pdfFileName,
     );
   } catch (error) {
-    await dependencies.repository.fail(analysis.id);
+    await dependencies.repository.fail(analysis.id, dependencies.leaseToken);
     throw new PdfExtractionWorkflowError(
       "PDF_UNAVAILABLE",
       "The stored lecture PDF is unavailable.",
@@ -75,7 +76,10 @@ export async function extractAnalysisPdf(
     );
   }
 
-  const claimed = await dependencies.repository.claim(analysis.id);
+  const claimed = await dependencies.repository.claim(
+    analysis.id,
+    dependencies.leaseToken,
+  );
 
   if (!claimed) {
     throw new PdfExtractionWorkflowError(
@@ -93,7 +97,11 @@ export async function extractAnalysisPdf(
       throw new Error("The PDF extraction service returned empty text.");
     }
 
-    const completed = await dependencies.repository.complete(analysis.id, pdfText);
+    const completed = await dependencies.repository.complete(
+      analysis.id,
+      pdfText,
+      dependencies.leaseToken,
+    );
 
     if (!completed) {
       throw new Error("The analysis state changed during PDF extraction.");
@@ -109,7 +117,7 @@ export async function extractAnalysisPdf(
       pdfFileName: analysis.pdfFileName,
     };
   } catch (error) {
-    await dependencies.repository.fail(analysis.id);
+    await dependencies.repository.fail(analysis.id, dependencies.leaseToken);
     const message =
       error instanceof PdfExtractionClientError
         ? error.message

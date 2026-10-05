@@ -8,7 +8,7 @@ LectraLLM is an AI-powered lecture content comparison tool that analyzes a lectu
 
 - **Next.js web application:** the user-facing application and future product API. It owns relational data access through Prisma.
 - **FastAPI AI service:** a separate internal service for compute-heavy document, media, embedding, and LLM workflows.
-- **PostgreSQL:** the durable relational system of record, accessed at runtime through Prisma's Neon serverless driver adapter.
+- **Supabase PostgreSQL:** the durable relational system of record, accessed at runtime through Prisma's standard PostgreSQL client.
 
 Keeping the future AI pipeline outside the web process allows its Python dependencies and compute profile to evolve independently without coupling them to the user-facing application.
 
@@ -38,6 +38,8 @@ Implemented through Phase 7:
 
 Phase 8 changes no Next.js product behavior. LectraLLM has no LMS, authentication, user, course, role, syllabus-management, student-account, notification, or administration scope.
 
+Long-running analysis orchestration is split into one stage per `/run` request. Each request acquires a UUID lease in `Analysis.processingToken` with a ten-minute `processingExpiresAt`. Claims use an atomic `updateMany` predicate that accepts only an absent or expired lease. Every stage completion and failure write requires the same unexpired token and clears it atomically; an interrupted lease can be reclaimed later without adding a queue or holding a database transaction across provider calls.
+
 ## FastAPI responsibilities
 
 Implemented through Phase 6; Phase 7 adds no FastAPI behavior:
@@ -61,7 +63,7 @@ OCR and unrelated AI workflows are **NOT IMPLEMENTED**. FastAPI does not access 
 
 ## Database role
 
-PostgreSQL is the relational system of record for each video-and-PDF analysis, its extracted topics, best-match results, and overall similarity score. The hot-reload-safe Prisma singleton uses `PrismaNeon` with the pooled `DATABASE_URL` for application runtime queries. Prisma CLI, schema, and migration operations use the direct `DIRECT_URL` configured on the datasource. Neon can wake an idle endpoint through the serverless runtime connection, so development does not require a manual wake-up step. A bounded `P1001`-only retry remains at the existing Analysis database boundaries as a defense against transient first-connection failures.
+Supabase PostgreSQL is the relational system of record for each video-and-PDF analysis, its extracted topics, best-match results, and overall similarity score. The hot-reload-safe Prisma singleton uses the pooled `DATABASE_URL` for application runtime queries. Prisma CLI, schema, and migration operations use the direct `DIRECT_URL` configured on the datasource. A bounded `P1001`-only retry remains at the existing Analysis database boundaries as a defense against transient first-connection failures.
 
 Phase 1 defines exactly three application models: `Analysis`, `Topic`, and `TopicMatch`. The schema stores file metadata and paths, processing status, nullable future-extraction results, topic sources, and future semantic matches. It does not perform any processing.
 

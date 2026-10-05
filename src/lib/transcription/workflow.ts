@@ -27,6 +27,7 @@ export class TranscriptionWorkflowError extends Error {
 
 interface TranscriptionWorkflowDependencies {
   client: TranscriptionClient;
+  leaseToken: string;
   repository: TranscriptionRepository;
   videoLocator: VideoLocator;
 }
@@ -64,7 +65,7 @@ export async function transcribeAnalysis(
       analysis.videoFileName,
     );
   } catch (error) {
-    await dependencies.repository.fail(analysis.id);
+    await dependencies.repository.fail(analysis.id, dependencies.leaseToken);
     throw new TranscriptionWorkflowError(
       "VIDEO_UNAVAILABLE",
       "The stored lecture video is unavailable.",
@@ -73,7 +74,10 @@ export async function transcribeAnalysis(
     );
   }
 
-  const claimed = await dependencies.repository.claim(analysis.id);
+  const claimed = await dependencies.repository.claim(
+    analysis.id,
+    dependencies.leaseToken,
+  );
 
   if (!claimed) {
     throw new TranscriptionWorkflowError(
@@ -94,6 +98,7 @@ export async function transcribeAnalysis(
     const completed = await dependencies.repository.complete(
       analysis.id,
       transcriptText,
+      dependencies.leaseToken,
     );
 
     if (!completed) {
@@ -109,7 +114,7 @@ export async function transcribeAnalysis(
       pdfFileName: analysis.pdfFileName,
     };
   } catch (error) {
-    await dependencies.repository.fail(analysis.id);
+    await dependencies.repository.fail(analysis.id, dependencies.leaseToken);
     throw new TranscriptionWorkflowError(
       "TRANSCRIPTION_FAILED",
       "The lecture could not be transcribed. You can retry this analysis.",

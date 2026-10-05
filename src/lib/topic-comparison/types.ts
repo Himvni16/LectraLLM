@@ -47,13 +47,14 @@ export interface TopicComparisonClient {
 
 export interface TopicComparisonRepository {
   findById(id: string): Promise<TopicComparisonAnalysis | null>;
-  claim(id: string): Promise<boolean>;
+  claim(id: string, leaseToken: string): Promise<boolean>;
   replaceAndComplete(
     id: string,
     matches: readonly AiTopicComparisonMatch[],
     overallSimilarityScore: Prisma.Decimal,
+    leaseToken: string,
   ): Promise<boolean>;
-  fail(id: string): Promise<void>;
+  fail(id: string, leaseToken: string): Promise<void>;
 }
 
 export interface TopicComparisonView {

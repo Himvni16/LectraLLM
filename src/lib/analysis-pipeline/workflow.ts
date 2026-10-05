@@ -1,10 +1,12 @@
 import "server-only";
 
 import { AnalysisStatus } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 
 import { createSingleFlightRunner } from "@/lib/analysis-pipeline/concurrency";
 import {
-  determineResumeStage,
+  determineRunAction,
+  statusForStage,
   type AnalysisPipelineStage,
   type AnalysisResumeSnapshot,
 } from "@/lib/analysis-pipeline/resume";
@@ -25,15 +27,39 @@ import { transcribeAnalysis } from "@/lib/transcription/workflow";
 
 export interface AnalysisPipelineRepository {
   findById(id: string): Promise<AnalysisResumeSnapshot | null>;
-  releaseInterruptedTranscription(id: string): Promise<boolean>;
+  claimLease(input: {
+    id: string;
+    expectedStatus: AnalysisStatus;
+    claimedStatus: AnalysisStatus;
+    token: string;
+    now: Date;
+    expiresAt: Date;
+  }): Promise<boolean>;
+  advanceWithLease(
+    id: string,
+    token: string,
+    status: AnalysisStatus,
+    now: Date,
+  ): Promise<boolean>;
+  releaseLease(id: string, token: string): Promise<boolean>;
 }
 
 export interface AnalysisPipelineDependencies {
   repository: AnalysisPipelineRepository;
-  transcribe(id: string): Promise<unknown>;
-  extractPdf(id: string): Promise<unknown>;
-  extractTopics(id: string): Promise<unknown>;
-  compareTopics(id: string): Promise<unknown>;
+  transcribe(id: string, leaseToken: string): Promise<unknown>;
+  extractPdf(id: string, leaseToken: string): Promise<unknown>;
+  extractTopics(id: string, leaseToken: string): Promise<unknown>;
+  compareTopics(id: string, leaseToken: string): Promise<unknown>;
+  createToken?: () => string;
+  now?: () => Date;
+  leaseDurationMs?: number;
+}
+
+export interface AnalysisRunResponse {
+  analysisId: string;
+  status: AnalysisStatus;
+  workPerformed: boolean;
+  requiresAnotherRun: boolean;
 }
 
 export class AnalysisPipelineError extends Error {
@@ -47,21 +73,60 @@ export class AnalysisPipelineError extends Error {
   }
 }
 
-const STAGES: readonly Exclude<AnalysisPipelineStage, "completed">[] = [
-  "transcription",
-  "pdf-extraction",
-  "topic-extraction",
-  "comparison",
-];
+export const ANALYSIS_LEASE_DURATION_MS = 10 * 60 * 1_000;
+
+function responseFor(
+  analysisId: string,
+  status: AnalysisStatus,
+  workPerformed: boolean,
+): AnalysisRunResponse {
+  return {
+    analysisId,
+    status,
+    workPerformed,
+    requiresAnotherRun:
+      status !== AnalysisStatus.COMPLETED && status !== AnalysisStatus.FAILED,
+  };
+}
+
+async function currentResponse(
+  analysisId: string,
+  dependencies: AnalysisPipelineDependencies,
+  workPerformed: boolean,
+): Promise<AnalysisRunResponse> {
+  const current = await dependencies.repository.findById(analysisId);
+  if (!current) {
+    throw new AnalysisPipelineError(
+      "ANALYSIS_NOT_FOUND",
+      "Analysis was not found.",
+      404,
+    );
+  }
+  return responseFor(analysisId, current.status, workPerformed);
+}
+
+async function executeStage(
+  analysisId: string,
+  leaseToken: string,
+  stage: Exclude<AnalysisPipelineStage, "completed">,
+  dependencies: AnalysisPipelineDependencies,
+): Promise<void> {
+  if (stage === "transcription") {
+    await dependencies.transcribe(analysisId, leaseToken);
+  } else if (stage === "pdf-extraction") {
+    await dependencies.extractPdf(analysisId, leaseToken);
+  } else if (stage === "topic-extraction") {
+    await dependencies.extractTopics(analysisId, leaseToken);
+  } else {
+    await dependencies.compareTopics(analysisId, leaseToken);
+  }
+}
 
 export async function executeAnalysisPipeline(
   analysisId: string,
   dependencies: AnalysisPipelineDependencies,
-): Promise<{
-  analysisId: string;
-  status: typeof AnalysisStatus.COMPLETED;
-}> {
-  let analysis = await dependencies.repository.findById(analysisId);
+): Promise<AnalysisRunResponse> {
+  const analysis = await dependencies.repository.findById(analysisId);
 
   if (!analysis) {
     throw new AnalysisPipelineError(
@@ -71,66 +136,77 @@ export async function executeAnalysisPipeline(
     );
   }
 
-  const resumeStage = determineResumeStage(analysis);
-  if (resumeStage === "completed") {
-    return { analysisId, status: AnalysisStatus.COMPLETED };
+  const action = determineRunAction(analysis);
+  if (action.type === "completed") {
+    return responseFor(analysisId, AnalysisStatus.COMPLETED, false);
   }
 
-  if (
-    resumeStage === "transcription" &&
-    analysis.status === AnalysisStatus.TRANSCRIBING
-  ) {
-    const released =
-      await dependencies.repository.releaseInterruptedTranscription(analysisId);
+  const now = (dependencies.now ?? (() => new Date()))();
+  const leaseToken = (dependencies.createToken ?? randomUUID)();
+  const expiresAt = new Date(
+    now.getTime() +
+      (dependencies.leaseDurationMs ?? ANALYSIS_LEASE_DURATION_MS),
+  );
+  const claimedStatus =
+    action.type === "run" ? statusForStage(action.stage) : analysis.status;
+  const claimed = await dependencies.repository.claimLease({
+    id: analysisId,
+    expectedStatus: analysis.status,
+    claimedStatus,
+    token: leaseToken,
+    now,
+    expiresAt,
+  });
 
-    if (!released) {
-      analysis = await dependencies.repository.findById(analysisId);
-      if (analysis?.status === AnalysisStatus.COMPLETED) {
-        return { analysisId, status: AnalysisStatus.COMPLETED };
-      }
+  if (!claimed) {
+    return currentResponse(analysisId, dependencies, false);
+  }
 
-      throw new AnalysisPipelineError(
-        "PIPELINE_CONFLICT",
-        "The analysis is already being processed.",
-        409,
+  try {
+    if (action.type === "advance") {
+      const advanced = await dependencies.repository.advanceWithLease(
+        analysisId,
+        leaseToken,
+        action.status,
+        (dependencies.now ?? (() => new Date()))(),
       );
+      if (!advanced) return currentResponse(analysisId, dependencies, false);
+    } else {
+      await executeStage(analysisId, leaseToken, action.stage, dependencies);
     }
+
+    return currentResponse(analysisId, dependencies, true);
+  } finally {
+    await dependencies.repository.releaseLease(analysisId, leaseToken);
   }
-
-  const firstStageIndex = STAGES.indexOf(resumeStage);
-
-  for (const stage of STAGES.slice(firstStageIndex)) {
-    if (stage === "transcription") await dependencies.transcribe(analysisId);
-    if (stage === "pdf-extraction") await dependencies.extractPdf(analysisId);
-    if (stage === "topic-extraction") await dependencies.extractTopics(analysisId);
-    if (stage === "comparison") await dependencies.compareTopics(analysisId);
-  }
-
-  return { analysisId, status: AnalysisStatus.COMPLETED };
 }
 
 const productionDependencies: AnalysisPipelineDependencies = {
   repository: undefined as never,
-  transcribe: (id) =>
+  transcribe: (id, leaseToken) =>
     transcribeAnalysis(id, {
       client: createGeminiTranscriptionClient(),
+      leaseToken,
       repository: prismaTranscriptionRepository,
       videoLocator: createCloudinaryVideoLocator(),
     }),
-  extractPdf: (id) =>
+  extractPdf: (id, leaseToken) =>
     extractAnalysisPdf(id, {
       client: createPdfExtractionClient(),
+      leaseToken,
       repository: prismaPdfExtractionRepository,
       pdfLocator: createSupabasePdfLocator(),
     }),
-  extractTopics: (id) =>
+  extractTopics: (id, leaseToken) =>
     extractAnalysisTopics(id, {
       client: createGeminiTopicExtractionClient(),
+      leaseToken,
       repository: prismaTopicExtractionRepository,
     }),
-  compareTopics: (id) =>
+  compareTopics: (id, leaseToken) =>
     compareAnalysisTopics(id, {
       client: createGeminiTopicComparisonClient(),
+      leaseToken,
       repository: prismaTopicComparisonRepository,
     }),
 };

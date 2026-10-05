@@ -49,6 +49,7 @@ const limits: UploadLimits = {
 
 describe("complete analysis workflow", () => {
   it("persists every Phase 2-7 output and reaches COMPLETED with mocked AI boundaries", async () => {
+    const leaseToken = "lease-1";
     let state: WorkflowState | undefined;
 
     const setStatus = (status: AnalysisStatus) => {
@@ -111,6 +112,7 @@ describe("complete analysis workflow", () => {
           model: "mock-whisper",
         })),
       },
+      leaseToken,
       repository: {
         findById: vi.fn(async () => ({
           id: state!.id,
@@ -147,6 +149,7 @@ describe("complete analysis workflow", () => {
           characterCount: 41,
         })),
       },
+      leaseToken,
       repository: {
         findById: vi.fn(async () => ({
           id: state!.id,
@@ -203,6 +206,7 @@ describe("complete analysis workflow", () => {
     };
 
     await extractAnalysisTopics(state.id, {
+      leaseToken,
       repository: topicRepository,
       client: {
         extract: vi.fn(async (_text, source) => ({
@@ -228,6 +232,7 @@ describe("complete analysis workflow", () => {
     };
 
     await compareAnalysisTopics(state.id, {
+      leaseToken,
       repository: comparisonRepository,
       client: {
         compare: vi.fn(async () => ({

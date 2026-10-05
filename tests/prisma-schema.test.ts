@@ -23,6 +23,8 @@ describe("Phase 1 Prisma types", () => {
       transcriptText: null,
       pdfText: null,
       overallSimilarityScore: new Prisma.Decimal("82.50"),
+      processingToken: null,
+      processingExpiresAt: null,
       createdAt,
       updatedAt: createdAt,
     };

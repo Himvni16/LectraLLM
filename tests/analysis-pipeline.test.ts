@@ -6,11 +6,18 @@ import {
   getAnalysisStatusLabel,
   shouldPollAnalysis,
 } from "@/lib/analysis-pipeline/presentation";
-import type { AnalysisResumeSnapshot } from "@/lib/analysis-pipeline/resume";
 import {
+  determineResumeStage,
+  type AnalysisResumeSnapshot,
+} from "@/lib/analysis-pipeline/resume";
+import {
+  ANALYSIS_LEASE_DURATION_MS,
   executeAnalysisPipeline,
   type AnalysisPipelineDependencies,
 } from "@/lib/analysis-pipeline/workflow";
+
+const now = new Date("2026-10-05T00:00:00.000Z");
+const token = "lease-1";
 
 function snapshot(
   status: AnalysisStatus,
@@ -21,132 +28,279 @@ function snapshot(
     status,
     transcriptText: null,
     pdfText: null,
+    hasOverallSimilarityScore: false,
     topics: [],
+    topicMatches: [],
     ...overrides,
   };
 }
 
-function dependencies(
-  analysis: AnalysisResumeSnapshot,
-): AnalysisPipelineDependencies & {
-  transcribe: ReturnType<typeof vi.fn>;
-  extractPdf: ReturnType<typeof vi.fn>;
-  extractTopics: ReturnType<typeof vi.fn>;
-  compareTopics: ReturnType<typeof vi.fn>;
-} {
+function completeTopics() {
+  return [
+    { id: "video-1", source: TopicSource.VIDEO },
+    { id: "pdf-1", source: TopicSource.PDF },
+  ];
+}
+
+function dependencies(initial: AnalysisResumeSnapshot, leaseAvailable = true) {
+  let current = initial;
+  const repository: AnalysisPipelineDependencies["repository"] = {
+    findById: vi.fn(async () => current),
+    claimLease: vi.fn(async (input) => {
+      if (!leaseAvailable) return false;
+      current = { ...current, status: input.claimedStatus };
+      return true;
+    }),
+    advanceWithLease: vi.fn(async (_id, _token, status) => {
+      current = { ...current, status };
+      return true;
+    }),
+    releaseLease: vi.fn(async () => true),
+  };
+  const transcribe = vi.fn(async () => {
+    current = { ...current, status: AnalysisStatus.EXTRACTING_PDF };
+  });
+  const extractPdf = vi.fn(async () => {
+    current = { ...current, status: AnalysisStatus.EXTRACTING_TOPICS };
+  });
+  const extractTopics = vi.fn(async () => {
+    current = { ...current, status: AnalysisStatus.COMPARING };
+  });
+  const compareTopics = vi.fn(async () => {
+    current = { ...current, status: AnalysisStatus.COMPLETED };
+  });
+  const deps: AnalysisPipelineDependencies = {
+    repository,
+    transcribe,
+    extractPdf,
+    extractTopics,
+    compareTopics,
+    createToken: () => token,
+    now: () => now,
+  };
   return {
-    repository: {
-      findById: vi.fn(async () => analysis),
-      releaseInterruptedTranscription: vi.fn(async () => true),
-    },
-    transcribe: vi.fn(async () => undefined),
-    extractPdf: vi.fn(async () => undefined),
-    extractTopics: vi.fn(async () => undefined),
-    compareTopics: vi.fn(async () => undefined),
+    deps,
+    repository,
+    transcribe,
+    extractPdf,
+    extractTopics,
+    compareTopics,
   };
 }
 
-describe("analysis pipeline orchestration", () => {
-  it("runs every existing workflow in order for an uploaded analysis", async () => {
-    const calls: string[] = [];
-    const deps = dependencies(snapshot(AnalysisStatus.UPLOADED));
-    deps.transcribe.mockImplementation(async () => void calls.push("transcribe"));
-    deps.extractPdf.mockImplementation(async () => void calls.push("pdf"));
-    deps.extractTopics.mockImplementation(async () => void calls.push("topics"));
-    deps.compareTopics.mockImplementation(async () => void calls.push("compare"));
+describe("one-stage analysis orchestration", () => {
+  it("runs transcription only for an UPLOADED analysis", async () => {
+    const setup = dependencies(snapshot(AnalysisStatus.UPLOADED));
 
-    await expect(executeAnalysisPipeline("analysis-1", deps)).resolves.toEqual({
+    await expect(
+      executeAnalysisPipeline("analysis-1", setup.deps),
+    ).resolves.toEqual({
       analysisId: "analysis-1",
-      status: AnalysisStatus.COMPLETED,
+      status: AnalysisStatus.EXTRACTING_PDF,
+      workPerformed: true,
+      requiresAnotherRun: true,
     });
-    expect(calls).toEqual(["transcribe", "pdf", "topics", "compare"]);
+    expect(setup.transcribe).toHaveBeenCalledWith("analysis-1", token);
+    expect(setup.extractPdf).not.toHaveBeenCalled();
+    expect(setup.extractTopics).not.toHaveBeenCalled();
+    expect(setup.compareTopics).not.toHaveBeenCalled();
+    expect(setup.repository.claimLease).toHaveBeenCalledWith({
+      id: "analysis-1",
+      expectedStatus: AnalysisStatus.UPLOADED,
+      claimedStatus: AnalysisStatus.UPLOADED,
+      token,
+      now,
+      expiresAt: new Date(now.getTime() + ANALYSIS_LEASE_DURATION_MS),
+    });
   });
 
-  it("preserves a transcript and resumes failed work at PDF extraction", async () => {
-    const deps = dependencies(
+  it.each([
+    [
+      AnalysisStatus.EXTRACTING_PDF,
+      { transcriptText: "Transcript" },
+      "extractPdf",
+      AnalysisStatus.EXTRACTING_TOPICS,
+    ],
+    [
+      AnalysisStatus.EXTRACTING_TOPICS,
+      { transcriptText: "Transcript", pdfText: "PDF text" },
+      "extractTopics",
+      AnalysisStatus.COMPARING,
+    ],
+    [
+      AnalysisStatus.COMPARING,
+      {
+        transcriptText: "Transcript",
+        pdfText: "PDF text",
+        topics: completeTopics(),
+      },
+      "compareTopics",
+      AnalysisStatus.COMPLETED,
+    ],
+  ] as const)(
+    "runs only the %s stage",
+    async (status, overrides, operation, expectedStatus) => {
+      const setup = dependencies(snapshot(status, overrides));
+      const result = await executeAnalysisPipeline("analysis-1", setup.deps);
+
+      expect(setup[operation]).toHaveBeenCalledOnce();
+      const calls = [
+        setup.transcribe,
+        setup.extractPdf,
+        setup.extractTopics,
+        setup.compareTopics,
+      ].reduce((total, mock) => total + mock.mock.calls.length, 0);
+      expect(calls).toBe(1);
+      expect(result.status).toBe(expectedStatus);
+    },
+  );
+
+  it("advances TRANSCRIBING recovery without retranscribing persisted text", async () => {
+    const setup = dependencies(
+      snapshot(AnalysisStatus.TRANSCRIBING, {
+        transcriptText: "Persisted transcript",
+      }),
+    );
+
+    await expect(
+      executeAnalysisPipeline("analysis-1", setup.deps),
+    ).resolves.toMatchObject({
+      status: AnalysisStatus.EXTRACTING_PDF,
+      workPerformed: true,
+    });
+    expect(setup.transcribe).not.toHaveBeenCalled();
+    expect(setup.repository.advanceWithLease).toHaveBeenCalledWith(
+      "analysis-1",
+      token,
+      AnalysisStatus.EXTRACTING_PDF,
+      now,
+    );
+  });
+
+  it.each([
+    [
+      "PDF text",
+      snapshot(AnalysisStatus.EXTRACTING_PDF, {
+        transcriptText: "Transcript",
+        pdfText: "Persisted PDF",
+      }),
+      "extractPdf",
+      AnalysisStatus.EXTRACTING_TOPICS,
+    ],
+    [
+      "topics",
+      snapshot(AnalysisStatus.EXTRACTING_TOPICS, {
+        transcriptText: "Transcript",
+        pdfText: "PDF",
+        topics: completeTopics(),
+      }),
+      "extractTopics",
+      AnalysisStatus.COMPARING,
+    ],
+    [
+      "comparison",
+      snapshot(AnalysisStatus.COMPARING, {
+        transcriptText: "Transcript",
+        pdfText: "PDF",
+        topics: completeTopics(),
+        hasOverallSimilarityScore: true,
+        topicMatches: [{ pdfTopicId: "pdf-1" }],
+      }),
+      "compareTopics",
+      AnalysisStatus.COMPLETED,
+    ],
+  ] as const)(
+    "does not rerun already persisted %s",
+    async (_label, analysis, operation, expectedStatus) => {
+      const setup = dependencies(analysis);
+      const result = await executeAnalysisPipeline("analysis-1", setup.deps);
+      expect(setup[operation]).not.toHaveBeenCalled();
+      expect(result.status).toBe(expectedStatus);
+    },
+  );
+
+  it("resumes FAILED from the earliest incomplete stage", async () => {
+    const setup = dependencies(
       snapshot(AnalysisStatus.FAILED, { transcriptText: "Transcript" }),
     );
 
-    await executeAnalysisPipeline("analysis-1", deps);
-
-    expect(deps.transcribe).not.toHaveBeenCalled();
-    expect(deps.extractPdf).toHaveBeenCalledOnce();
-    expect(deps.extractTopics).toHaveBeenCalledOnce();
-    expect(deps.compareTopics).toHaveBeenCalledOnce();
+    await executeAnalysisPipeline("analysis-1", setup.deps);
+    expect(setup.extractPdf).toHaveBeenCalledOnce();
+    expect(setup.transcribe).not.toHaveBeenCalled();
+    expect(setup.extractTopics).not.toHaveBeenCalled();
   });
 
-  it("preserves transcript and PDF text and resumes at topic extraction", async () => {
-    const deps = dependencies(
-      snapshot(AnalysisStatus.FAILED, {
-        transcriptText: "Transcript",
-        pdfText: "PDF text",
-      }),
-    );
-
-    await executeAnalysisPipeline("analysis-1", deps);
-
-    expect(deps.transcribe).not.toHaveBeenCalled();
-    expect(deps.extractPdf).not.toHaveBeenCalled();
-    expect(deps.extractTopics).toHaveBeenCalledOnce();
-    expect(deps.compareTopics).toHaveBeenCalledOnce();
-  });
-
-  it("preserves extracted topics and resumes at comparison", async () => {
-    const deps = dependencies(
-      snapshot(AnalysisStatus.FAILED, {
-        transcriptText: "Transcript",
-        pdfText: "PDF text",
-        topics: [
-          { source: TopicSource.VIDEO },
-          { source: TopicSource.PDF },
-        ],
-      }),
-    );
-
-    await executeAnalysisPipeline("analysis-1", deps);
-
-    expect(deps.transcribe).not.toHaveBeenCalled();
-    expect(deps.extractPdf).not.toHaveBeenCalled();
-    expect(deps.extractTopics).not.toHaveBeenCalled();
-    expect(deps.compareTopics).toHaveBeenCalledOnce();
-  });
-
-  it("does no work for an already completed analysis", async () => {
-    const deps = dependencies(snapshot(AnalysisStatus.COMPLETED));
-
-    await executeAnalysisPipeline("analysis-1", deps);
-
-    expect(deps.transcribe).not.toHaveBeenCalled();
-    expect(deps.extractPdf).not.toHaveBeenCalled();
-    expect(deps.extractTopics).not.toHaveBeenCalled();
-    expect(deps.compareTopics).not.toHaveBeenCalled();
-  });
-
-  it("releases an interrupted transcription into the existing retry path", async () => {
-    const deps = dependencies(snapshot(AnalysisStatus.TRANSCRIBING));
-
-    await executeAnalysisPipeline("analysis-1", deps);
-
-    expect(deps.repository.releaseInterruptedTranscription).toHaveBeenCalledWith(
-      "analysis-1",
-    );
-    expect(deps.transcribe).toHaveBeenCalledOnce();
-  });
-
-  it("stops immediately and never invokes later stages after a failure", async () => {
-    const deps = dependencies(snapshot(AnalysisStatus.UPLOADED));
-    deps.extractPdf.mockRejectedValue(new Error("private service failure"));
-
+  it("does no work for COMPLETED or an overlapping valid lease", async () => {
+    const completed = dependencies(snapshot(AnalysisStatus.COMPLETED));
     await expect(
-      executeAnalysisPipeline("analysis-1", deps),
-    ).rejects.toThrow("private service failure");
-    expect(deps.transcribe).toHaveBeenCalledOnce();
-    expect(deps.extractPdf).toHaveBeenCalledOnce();
-    expect(deps.extractTopics).not.toHaveBeenCalled();
-    expect(deps.compareTopics).not.toHaveBeenCalled();
+      executeAnalysisPipeline("analysis-1", completed.deps),
+    ).resolves.toMatchObject({ workPerformed: false, requiresAnotherRun: false });
+    expect(completed.repository.claimLease).not.toHaveBeenCalled();
+
+    const overlap = dependencies(snapshot(AnalysisStatus.TRANSCRIBING), false);
+    await expect(
+      executeAnalysisPipeline("analysis-1", overlap.deps),
+    ).resolves.toMatchObject({
+      status: AnalysisStatus.TRANSCRIBING,
+      workPerformed: false,
+      requiresAnotherRun: true,
+    });
+    expect(overlap.transcribe).not.toHaveBeenCalled();
   });
 
-  it("shares duplicate in-flight requests instead of running model work twice", async () => {
+  it.each([
+    [
+      AnalysisStatus.EXTRACTING_TOPICS,
+      { transcriptText: "Transcript", pdfText: "PDF" },
+      "extractTopics",
+    ],
+    [
+      AnalysisStatus.COMPARING,
+      {
+        transcriptText: "Transcript",
+        pdfText: "PDF",
+        topics: completeTopics(),
+      },
+      "compareTopics",
+    ],
+  ] as const)(
+    "prevents overlapping %s calls from duplicating persisted rows",
+    async (status, overrides, operation) => {
+      const setup = dependencies(snapshot(status, overrides), false);
+      await executeAnalysisPipeline("analysis-1", setup.deps);
+      expect(setup[operation]).not.toHaveBeenCalled();
+    },
+  );
+
+  it("derives resume stages deterministically from persisted artifacts", () => {
+    expect(determineResumeStage(snapshot(AnalysisStatus.FAILED))).toBe(
+      "transcription",
+    );
+    expect(
+      determineResumeStage(
+        snapshot(AnalysisStatus.FAILED, { transcriptText: "Transcript" }),
+      ),
+    ).toBe("pdf-extraction");
+    expect(
+      determineResumeStage(
+        snapshot(AnalysisStatus.FAILED, {
+          transcriptText: "Transcript",
+          pdfText: "PDF",
+        }),
+      ),
+    ).toBe("topic-extraction");
+    expect(
+      determineResumeStage(
+        snapshot(AnalysisStatus.FAILED, {
+          transcriptText: "Transcript",
+          pdfText: "PDF",
+          topics: completeTopics(),
+        }),
+      ),
+    ).toBe("comparison");
+  });
+
+  it("shares duplicate in-process requests while the database lease protects other instances", async () => {
     let finish: (() => void) | undefined;
     const operation = vi.fn(
       () =>
@@ -155,13 +309,11 @@ describe("analysis pipeline orchestration", () => {
         }),
     );
     const runOnce = createSingleFlightRunner(operation);
-
     const first = runOnce("analysis-1");
     const duplicate = runOnce("analysis-1");
     expect(first).toBe(duplicate);
     await Promise.resolve();
     expect(operation).toHaveBeenCalledOnce();
-
     finish?.();
     await expect(first).resolves.toBe("complete");
   });

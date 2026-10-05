@@ -12,9 +12,9 @@ export interface PdfExtractionAnalysis {
 
 export interface PdfExtractionRepository {
   findById(id: string): Promise<PdfExtractionAnalysis | null>;
-  claim(id: string): Promise<boolean>;
-  complete(id: string, pdfText: string): Promise<boolean>;
-  fail(id: string): Promise<void>;
+  claim(id: string, leaseToken: string): Promise<boolean>;
+  complete(id: string, pdfText: string, leaseToken: string): Promise<boolean>;
+  fail(id: string, leaseToken: string): Promise<void>;
 }
 
 export interface SupabaseLocatedPdf {

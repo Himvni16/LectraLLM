@@ -27,6 +27,7 @@ export class TopicExtractionWorkflowError extends Error {
 
 interface TopicExtractionWorkflowDependencies {
   client: TopicExtractionClient;
+  leaseToken: string;
   repository: TopicExtractionRepository;
 }
 
@@ -73,7 +74,10 @@ export async function extractAnalysisTopics(
     );
   }
 
-  const claimed = await dependencies.repository.claim(analysis.id);
+  const claimed = await dependencies.repository.claim(
+    analysis.id,
+    dependencies.leaseToken,
+  );
   if (!claimed) {
     throw new TopicExtractionWorkflowError(
       "TOPIC_EXTRACTION_NOT_ALLOWED",
@@ -92,6 +96,7 @@ export async function extractAnalysisTopics(
       analysis.id,
       videoResult.topics,
       pdfResult.topics,
+      dependencies.leaseToken,
     );
 
     if (!completed) {
@@ -105,7 +110,7 @@ export async function extractAnalysisTopics(
       pdfTopics: pdfResult.topics,
     };
   } catch (error) {
-    await dependencies.repository.fail(analysis.id);
+    await dependencies.repository.fail(analysis.id, dependencies.leaseToken);
     throw new TopicExtractionWorkflowError(
       "TOPIC_EXTRACTION_FAILED",
       "Topics could not be extracted. You can retry this analysis.",

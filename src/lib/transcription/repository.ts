@@ -23,12 +23,14 @@ export const prismaTranscriptionRepository: TranscriptionRepository = {
     );
   },
 
-  async claim(id) {
+  async claim(id, leaseToken) {
     const result = await withPrismaRetry("analysis.claimTranscription", () =>
       prisma.analysis.updateMany({
         where: {
           id,
           status: { in: [AnalysisStatus.UPLOADED, AnalysisStatus.FAILED] },
+          processingToken: leaseToken,
+          processingExpiresAt: { gt: new Date() },
         },
         data: {
           status: AnalysisStatus.TRANSCRIBING,
@@ -40,13 +42,20 @@ export const prismaTranscriptionRepository: TranscriptionRepository = {
     return result.count === 1;
   },
 
-  async complete(id, transcriptText) {
+  async complete(id, transcriptText, leaseToken) {
     const result = await withPrismaRetry("analysis.completeTranscription", () =>
       prisma.analysis.updateMany({
-        where: { id, status: AnalysisStatus.TRANSCRIBING },
+        where: {
+          id,
+          status: AnalysisStatus.TRANSCRIBING,
+          processingToken: leaseToken,
+          processingExpiresAt: { gt: new Date() },
+        },
         data: {
           transcriptText,
           status: AnalysisStatus.EXTRACTING_PDF,
+          processingToken: null,
+          processingExpiresAt: null,
         },
       }),
     );
@@ -54,7 +63,7 @@ export const prismaTranscriptionRepository: TranscriptionRepository = {
     return result.count === 1;
   },
 
-  async fail(id) {
+  async fail(id, leaseToken) {
     await withPrismaRetry("analysis.failTranscription", () =>
       prisma.analysis.updateMany({
         where: {
@@ -66,10 +75,14 @@ export const prismaTranscriptionRepository: TranscriptionRepository = {
               AnalysisStatus.FAILED,
             ],
           },
+          processingToken: leaseToken,
+          processingExpiresAt: { gt: new Date() },
         },
         data: {
           status: AnalysisStatus.FAILED,
           transcriptText: null,
+          processingToken: null,
+          processingExpiresAt: null,
         },
       }),
     );

@@ -57,15 +57,23 @@ describe("Prisma topic comparison repository", () => {
         "analysis-1",
         matches,
         overallScore,
+        "lease-1",
       ),
     ).resolves.toBe(true);
 
     expect(prismaMocks.runTransaction).toHaveBeenCalledTimes(1);
     expect(prismaMocks.transaction.analysis.updateMany).toHaveBeenCalledWith({
-      where: { id: "analysis-1", status: AnalysisStatus.COMPARING },
+      where: {
+        id: "analysis-1",
+        status: AnalysisStatus.COMPARING,
+        processingToken: "lease-1",
+        processingExpiresAt: { gt: expect.any(Date) },
+      },
       data: {
         status: AnalysisStatus.COMPLETED,
         overallSimilarityScore: overallScore,
+        processingToken: null,
+        processingExpiresAt: null,
       },
     });
     expect(prismaMocks.transaction.topicMatch.deleteMany).toHaveBeenCalledWith({
@@ -97,6 +105,7 @@ describe("Prisma topic comparison repository", () => {
         "analysis-1",
         matches,
         new Prisma.Decimal(50),
+        "lease-1",
       ),
     ).resolves.toBe(false);
     expect(prismaMocks.transaction.topicMatch.deleteMany).not.toHaveBeenCalled();
@@ -104,11 +113,20 @@ describe("Prisma topic comparison repository", () => {
   });
 
   it("marks only an in-progress comparison as FAILED", async () => {
-    await prismaTopicComparisonRepository.fail("analysis-1");
+    await prismaTopicComparisonRepository.fail("analysis-1", "lease-1");
 
     expect(prismaMocks.analysis.updateMany).toHaveBeenCalledWith({
-      where: { id: "analysis-1", status: AnalysisStatus.COMPARING },
-      data: { status: AnalysisStatus.FAILED },
+      where: {
+        id: "analysis-1",
+        status: AnalysisStatus.COMPARING,
+        processingToken: "lease-1",
+        processingExpiresAt: { gt: expect.any(Date) },
+      },
+      data: {
+        status: AnalysisStatus.FAILED,
+        processingToken: null,
+        processingExpiresAt: null,
+      },
     });
   });
 });

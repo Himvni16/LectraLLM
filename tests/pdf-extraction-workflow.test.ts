@@ -28,6 +28,7 @@ const extraction: AiPdfExtractionResult = {
   pageCount: 2,
   characterCount: 60,
 };
+const leaseToken = "lease-1";
 
 function createRepository(
   currentAnalysis: PdfExtractionAnalysis | null = analysis,
@@ -60,6 +61,7 @@ describe("analysis PDF extraction workflow", () => {
     await expect(
       extractAnalysisPdf("missing", {
         client: { extract: vi.fn() },
+        leaseToken,
         repository,
         pdfLocator: createPdfLocator(),
       }),
@@ -77,6 +79,7 @@ describe("analysis PDF extraction workflow", () => {
     await expect(
       extractAnalysisPdf(analysis.id, {
         client: { extract: vi.fn() },
+        leaseToken,
         repository,
         pdfLocator: createPdfLocator(),
       }),
@@ -98,11 +101,12 @@ describe("analysis PDF extraction workflow", () => {
     await expect(
       extractAnalysisPdf(analysis.id, {
         client: { extract: vi.fn() },
+        leaseToken,
         repository,
         pdfLocator,
       }),
     ).rejects.toMatchObject({ code: "PDF_UNAVAILABLE", statusCode: 409 });
-    expect(repository.fail).toHaveBeenCalledWith(analysis.id);
+    expect(repository.fail).toHaveBeenCalledWith(analysis.id, leaseToken);
     expect(repository.claim).not.toHaveBeenCalled();
   });
 
@@ -127,12 +131,17 @@ describe("analysis PDF extraction workflow", () => {
 
     const result = await extractAnalysisPdf(analysis.id, {
       client,
+      leaseToken,
       repository,
       pdfLocator: createPdfLocator(),
     });
 
     expect(currentStatus).toBe(AnalysisStatus.EXTRACTING_TOPICS);
-    expect(repository.complete).toHaveBeenCalledWith(analysis.id, extraction.text);
+    expect(repository.complete).toHaveBeenCalledWith(
+      analysis.id,
+      extraction.text,
+      leaseToken,
+    );
     expect(result.status).toBe(AnalysisStatus.EXTRACTING_TOPICS);
     expect(result.text).toBe(extraction.text);
     expect(JSON.stringify(result)).not.toContain("C:\\private");
@@ -154,6 +163,7 @@ describe("analysis PDF extraction workflow", () => {
     await expect(
       extractAnalysisPdf(analysis.id, {
         client,
+        leaseToken,
         repository,
         pdfLocator: createPdfLocator(),
       }),
@@ -162,7 +172,7 @@ describe("analysis PDF extraction workflow", () => {
       statusCode: 502,
       message: "The PDF text could not be extracted. You can retry this analysis.",
     });
-    expect(repository.fail).toHaveBeenCalledWith(analysis.id);
+    expect(repository.fail).toHaveBeenCalledWith(analysis.id, leaseToken);
     expect(repository.complete).not.toHaveBeenCalled();
     expect(preservedTranscript).toBe(transcriptText);
   });
@@ -172,11 +182,12 @@ describe("analysis PDF extraction workflow", () => {
 
     const result = await extractAnalysisPdf(analysis.id, {
       client: { extract: vi.fn(async () => extraction) },
+      leaseToken,
       repository,
       pdfLocator: createPdfLocator(),
     });
 
-    expect(repository.claim).toHaveBeenCalledWith(analysis.id);
+    expect(repository.claim).toHaveBeenCalledWith(analysis.id, leaseToken);
     expect(result.status).toBe(AnalysisStatus.EXTRACTING_TOPICS);
   });
 
@@ -192,6 +203,7 @@ describe("analysis PDF extraction workflow", () => {
             );
           }),
         },
+        leaseToken,
         repository,
         pdfLocator: createPdfLocator(),
       }),
@@ -199,6 +211,6 @@ describe("analysis PDF extraction workflow", () => {
       code: "PDF_EXTRACTION_FAILED",
       message: "No extractable text found in PDF.",
     });
-    expect(repository.fail).toHaveBeenCalledWith(analysis.id);
+    expect(repository.fail).toHaveBeenCalledWith(analysis.id, leaseToken);
   });
 });

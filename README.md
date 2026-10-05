@@ -16,7 +16,7 @@ Upload video + PDF → Transcribe → Extract PDF text → Extract VIDEO/PDF top
 ## Architecture overview
 
 - **Next.js + React + TypeScript + Tailwind CSS:** primary web application and Recharts-backed analysis dashboard at the repository root.
-- **PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, best-match results, and overall similarity. Runtime queries use Prisma's Neon serverless adapter.
+- **Supabase PostgreSQL + Prisma:** relational persistence for analyses, extracted topics, best-match results, and overall similarity. Runtime queries use Prisma's standard PostgreSQL client.
 - **Gemini Developer API:** server-side video transcription, structured topic extraction, and topic embeddings. Lecture videos are transferred from authenticated Cloudinary storage to the Gemini Files API before transcription.
 - **FastAPI + Python:** retained under `ai-service/` for legacy/local compatibility and its health endpoint; the production analysis pipeline no longer calls its transcription endpoint.
 
@@ -49,8 +49,8 @@ The web app reads `.env.local`, which is intentionally ignored by Git.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | Yes | Pooled PostgreSQL URL used by application/runtime Prisma queries |
-| `DIRECT_URL` | Yes for Prisma CLI | Direct PostgreSQL URL used by migrations and administrative commands |
+| `DATABASE_URL` | Yes | Pooled Supabase PostgreSQL URL used by application/runtime Prisma queries |
+| `DIRECT_URL` | Yes for Prisma CLI | Direct Supabase PostgreSQL URL used by migrations and administrative commands |
 | `AI_SERVICE_URL` | Yes for legacy health proxy | Base URL used only by the retained FastAPI health proxy |
 | `GEMINI_API_KEY` | Yes | Server-only Gemini Developer API key |
 | `GEMINI_TRANSCRIPTION_MODEL` | No | Video transcription model; defaults to `gemini-3.8-flash` |
@@ -71,19 +71,17 @@ The AI service optionally reads `ai-service/.env`. Its `AI_CORS_ORIGINS` value i
 
 ## Database setup
 
-1. Provision a PostgreSQL database, locally or through Neon.
-2. Set `DATABASE_URL` in `.env.local` to the pooled runtime URL. Neon pooled hostnames normally include `-pooler`. The singleton application client passes this URL to `PrismaNeon`, which connects through Neon's serverless driver rather than Prisma's default TCP query-engine transport.
-3. Set `DIRECT_URL` to the corresponding direct, non-pooler URL. Prisma CLI, schema validation, and migration operations continue to use this direct connection through the Prisma datasource configuration.
+1. Provision a Supabase PostgreSQL database.
+2. Set `DATABASE_URL` in `.env.local` to the Supabase pooled runtime URL (typically the pooler host on port `6543`). The singleton application client uses Prisma's standard PostgreSQL connection configuration.
+3. Set `DIRECT_URL` to the corresponding direct Supabase database URL (typically `db.<project-ref>.supabase.co` on port `5432`). Prisma CLI, schema validation, and migration operations use this direct connection through the Prisma datasource configuration.
 4. For local development, apply the checked-in migrations with `npx prisma migrate dev`. For production, use `npx prisma migrate deploy`.
 5. Run `npm run prisma:generate`.
 
 The migration creates only `Analysis`, `Topic`, and `TopicMatch`, plus their supporting enums and indexes. For optional development sample data, run `npm run prisma:seed` after applying the migration.
 
-### Neon idle wake-up behavior
+### Supabase PostgreSQL connectivity
 
-Neon may auto-suspend an idle compute endpoint. Runtime Prisma queries use the Neon serverless driver adapter, so LectraLLM can connect to and wake the endpoint automatically; no manual Neon wake-up step is required. The first request after an idle period can still take slightly longer or initially return Prisma `P1001` while the endpoint becomes ready.
-
-LectraLLM retains a defensive retry around application database boundaries, including Analysis creation, loading, and transcription/PDF-extraction state updates. It retries only Prisma `P1001`, including `P1001` errors mapped from adapter connection failures. The policy is bounded to three total attempts with a 1.5-second delay between attempts. Other Prisma errors and application validation errors are not retried. Retry logs contain only the operation name, error code, and attempt metadata; database URLs and credentials are never returned to the browser.
+Use the pooler URL only for application runtime queries and the direct database URL only for Prisma CLI operations. LectraLLM retains a bounded `P1001` retry around application database boundaries, including Analysis creation, loading, and transcription/PDF-extraction state updates. Other Prisma and application validation errors are not retried. Retry logs contain only the operation name, error code, and attempt metadata; database URLs and credentials are never returned to the browser.
 
 ## Upload workflow
 
@@ -152,6 +150,8 @@ node --conditions=react-server --import tsx scripts/gemini-cloudinary-transcript
 
 If transcription fails, the analysis becomes `FAILED` and can be retried from the analysis page. Browser responses do not include internal storage or temporary paths.
 
+The browser drives analysis through repeated `POST /api/analyses/<id>/run` calls. Each invocation performs at most one stage, then returns the persisted status and whether another run is required. A database-backed 10-minute lease prevents overlapping Vercel instances from running the same stage; expired leases can be reclaimed after an interrupted invocation. Completed transcript, PDF text, topic, and comparison artifacts are detected before provider work so retries resume at the earliest incomplete stage.
+
 ## PDF text extraction workflow
 
 After transcription succeeds, the analysis page offers **Extract PDF text** and runs:
@@ -210,7 +210,7 @@ With both running, the web-side proxy health endpoint is `http://localhost:3000/
 
 ## Production deployment
 
-The production path uses the Next.js web service, PostgreSQL/Neon, Cloudinary, private Supabase Storage, and the Gemini Developer API. The retained FastAPI project is not called by production transcription and does not need to host faster-whisper for this path. Configure secrets through the hosting platform, run checked-in migrations with `npx prisma migrate deploy`, and build the web application with Node.js 20.19+ (Node.js 22 LTS recommended).
+The production path uses the Next.js web service, Supabase PostgreSQL, Cloudinary, private Supabase Storage, and the Gemini Developer API. The retained FastAPI project is not called by production transcription and does not need to host faster-whisper for this path. Configure secrets through the hosting platform, run checked-in migrations with `npx prisma migrate deploy`, and build the web application with Node.js 20.19+ (Node.js 22 LTS recommended).
 
 The complete commands, environment variables, storage/model-cache considerations, health checks, and troubleshooting guidance are in [docs/deployment.md](docs/deployment.md). Phase 8 makes the repository deployment-ready but does not deploy it to a hosting provider.
 

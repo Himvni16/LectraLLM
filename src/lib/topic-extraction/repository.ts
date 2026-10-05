@@ -37,7 +37,7 @@ export const prismaTopicExtractionRepository: TopicExtractionRepository = {
     );
   },
 
-  async claim(id) {
+  async claim(id, leaseToken) {
     const result = await withPrismaRetry("analysis.claimTopicExtraction", () =>
       prisma.analysis.updateMany({
         where: {
@@ -47,6 +47,8 @@ export const prismaTopicExtractionRepository: TopicExtractionRepository = {
           },
           transcriptText: { not: null },
           pdfText: { not: null },
+          processingToken: leaseToken,
+          processingExpiresAt: { gt: new Date() },
         },
         data: { status: AnalysisStatus.EXTRACTING_TOPICS },
       }),
@@ -55,12 +57,21 @@ export const prismaTopicExtractionRepository: TopicExtractionRepository = {
     return result.count === 1;
   },
 
-  replaceAndComplete(id, videoTopics, pdfTopics) {
+  replaceAndComplete(id, videoTopics, pdfTopics, leaseToken) {
     return withPrismaRetry("analysis.replaceTopics", () =>
       prisma.$transaction(async (transaction) => {
         const transition = await transaction.analysis.updateMany({
-          where: { id, status: AnalysisStatus.EXTRACTING_TOPICS },
-          data: { status: AnalysisStatus.COMPARING },
+          where: {
+            id,
+            status: AnalysisStatus.EXTRACTING_TOPICS,
+            processingToken: leaseToken,
+            processingExpiresAt: { gt: new Date() },
+          },
+          data: {
+            status: AnalysisStatus.COMPARING,
+            processingToken: null,
+            processingExpiresAt: null,
+          },
         });
 
         if (transition.count !== 1) {
@@ -83,11 +94,20 @@ export const prismaTopicExtractionRepository: TopicExtractionRepository = {
     );
   },
 
-  async fail(id) {
+  async fail(id, leaseToken) {
     await withPrismaRetry("analysis.failTopicExtraction", () =>
       prisma.analysis.updateMany({
-        where: { id, status: AnalysisStatus.EXTRACTING_TOPICS },
-        data: { status: AnalysisStatus.FAILED },
+        where: {
+          id,
+          status: AnalysisStatus.EXTRACTING_TOPICS,
+          processingToken: leaseToken,
+          processingExpiresAt: { gt: new Date() },
+        },
+        data: {
+          status: AnalysisStatus.FAILED,
+          processingToken: null,
+          processingExpiresAt: null,
+        },
       }),
     );
   },

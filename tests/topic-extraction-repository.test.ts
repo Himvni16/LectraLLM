@@ -48,6 +48,7 @@ describe("Prisma topic extraction repository", () => {
         "analysis-1",
         [{ name: "Deadlocks", confidence: 0.94 }],
         [{ name: "Deadlock Prevention", confidence: 0.9 }],
+        "lease-1",
       ),
     ).resolves.toBe(true);
 
@@ -56,8 +57,14 @@ describe("Prisma topic extraction repository", () => {
       where: {
         id: "analysis-1",
         status: AnalysisStatus.EXTRACTING_TOPICS,
+        processingToken: "lease-1",
+        processingExpiresAt: { gt: expect.any(Date) },
       },
-      data: { status: AnalysisStatus.COMPARING },
+      data: {
+        status: AnalysisStatus.COMPARING,
+        processingToken: null,
+        processingExpiresAt: null,
+      },
     });
     expect(prismaMocks.transaction.topic.deleteMany).toHaveBeenCalledWith({
       where: { analysisId: "analysis-1" },
@@ -86,6 +93,7 @@ describe("Prisma topic extraction repository", () => {
       "analysis-2",
       [],
       [],
+      "lease-1",
     );
 
     expect(prismaMocks.transaction.topic.deleteMany).toHaveBeenCalledWith({
@@ -102,6 +110,7 @@ describe("Prisma topic extraction repository", () => {
         "analysis-1",
         [{ name: "Deadlocks", confidence: null }],
         [],
+        "lease-1",
       ),
     ).resolves.toBe(false);
 
@@ -110,14 +119,20 @@ describe("Prisma topic extraction repository", () => {
   });
 
   it("marks failure without changing source text or existing topics", async () => {
-    await prismaTopicExtractionRepository.fail("analysis-1");
+    await prismaTopicExtractionRepository.fail("analysis-1", "lease-1");
 
     expect(prismaMocks.analysis.updateMany).toHaveBeenCalledWith({
       where: {
         id: "analysis-1",
         status: AnalysisStatus.EXTRACTING_TOPICS,
+        processingToken: "lease-1",
+        processingExpiresAt: { gt: expect.any(Date) },
       },
-      data: { status: AnalysisStatus.FAILED },
+      data: {
+        status: AnalysisStatus.FAILED,
+        processingToken: null,
+        processingExpiresAt: null,
+      },
     });
     const call = prismaMocks.analysis.updateMany.mock.calls[0]?.[0];
     expect(call.data).not.toHaveProperty("transcriptText");

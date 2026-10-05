@@ -1,14 +1,7 @@
-import { NextResponse } from "next/server";
-
-import { createGeminiTranscriptionClient } from "@/lib/transcription/gemini-client";
-import { createCloudinaryVideoLocator } from "@/lib/transcription/media";
-import { prismaTranscriptionRepository } from "@/lib/transcription/repository";
-import {
-  transcribeAnalysis,
-  TranscriptionWorkflowError,
-} from "@/lib/transcription/workflow";
+import { respondToAnalysisRun } from "@/lib/analysis-pipeline/http";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -16,36 +9,5 @@ interface RouteContext {
 
 export async function POST(_request: Request, context: RouteContext) {
   const { id } = await context.params;
-
-  try {
-    const result = await transcribeAnalysis(id, {
-      client: createGeminiTranscriptionClient(),
-      repository: prismaTranscriptionRepository,
-      videoLocator: createCloudinaryVideoLocator(),
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof TranscriptionWorkflowError) {
-      if (error.code === "TRANSCRIPTION_FAILED") {
-        console.error("Analysis transcription failed.", error.cause);
-      }
-
-      return NextResponse.json(
-        { error: { code: error.code, message: error.message } },
-        { status: error.statusCode },
-      );
-    }
-
-    console.error("Unexpected transcription error.", error);
-    return NextResponse.json(
-      {
-        error: {
-          code: "TRANSCRIPTION_FAILED",
-          message: "The lecture could not be transcribed.",
-        },
-      },
-      { status: 500 },
-    );
-  }
+  return respondToAnalysisRun(id);
 }

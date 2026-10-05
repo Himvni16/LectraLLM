@@ -8,12 +8,12 @@ Deploy these resources in a region with low network latency between them:
 
 1. **Next.js web service** — serves the UI and server routes, owns Prisma/database access, and orchestrates analysis stages.
 2. **Gemini Developer API** — receives temporary Files API uploads for video transcription and performs the existing topic extraction and embedding calls.
-3. **PostgreSQL/Neon** — stores analyses, topics, matches, and workflow status.
+3. **Supabase PostgreSQL** — stores analyses, topics, matches, and workflow status.
 4. **Cloudinary Free** — stores lecture videos uploaded directly from the browser.
 5. **Supabase Storage Free** — stores PDFs in a private bucket.
 
 ```text
-Browser → Next.js → PostgreSQL/Neon
+Browser → Next.js → Supabase PostgreSQL
     ├──→ Cloudinary (authenticated lecture videos)
     ├──→ Supabase Storage (private PDFs)
     └──→ Gemini Developer API (transcription, topic extraction, embeddings)
@@ -26,7 +26,7 @@ The FastAPI service should not be publicly callable unless network controls and 
 - Node.js **20.19 or newer**; Node.js 22 LTS is recommended.
 - npm 10 or newer.
 - Python 3.12; Python 3.11 is also suitable for the pinned dependencies.
-- PostgreSQL 15 or newer, or a compatible Neon project.
+- PostgreSQL 15 or newer, provided by Supabase.
 
 Do not lower the Node.js minimum: Next.js and the current toolchain depend on modern Node behavior.
 
@@ -36,8 +36,8 @@ Set these as server-side environment variables on the Next.js service:
 
 | Variable | Required | Production value |
 | --- | --- | --- |
-| `DATABASE_URL` | Yes | Pooled Neon/PostgreSQL URL used by the runtime Neon serverless adapter |
-| `DIRECT_URL` | Yes for deployment operations | Direct, non-pooler URL used by Prisma CLI and migrations |
+| `DATABASE_URL` | Yes | Pooled Supabase PostgreSQL URL used by the application runtime |
+| `DIRECT_URL` | Yes for deployment operations | Direct Supabase PostgreSQL URL used by Prisma CLI and migrations |
 | `AI_SERVICE_URL` | Yes for the retained health proxy | FastAPI base URL; production analysis stages do not use it |
 | `GEMINI_API_KEY` | Yes | Server-only Gemini Developer API key |
 | `GEMINI_TRANSCRIPTION_MODEL` | No | Video transcription model; default `gemini-3.8-flash` |
@@ -52,7 +52,7 @@ Set these as server-side environment variables on the Next.js service:
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only service-role key |
 | `SUPABASE_STORAGE_BUCKET` | Yes | Existing private PDF bucket |
 
-`DATABASE_URL` and `DIRECT_URL` are secrets. Configure them through the hosting platform and never expose them through `NEXT_PUBLIC_*` variables. The web runtime uses the pooled URL through `PrismaNeon`; Prisma migration commands use `DIRECT_URL` from the schema datasource.
+`DATABASE_URL` and `DIRECT_URL` are Supabase PostgreSQL secrets. Configure them through the hosting platform and never expose them through `NEXT_PUBLIC_*` variables. The web runtime uses the pooled URL; Prisma migration commands use `DIRECT_URL` from the schema datasource. `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` remain Storage/API credentials and are not Prisma connection URLs.
 
 ## AI service environment
 
@@ -81,6 +81,8 @@ Lecture videos are stored under generated Cloudinary public IDs and PDFs under g
 Before transcription, Next.js revalidates the Cloudinary asset's type, authenticated delivery mode, format, and configured 100 MiB limit. Because Gemini supports arbitrary uploaded files but not arbitrary external video URLs, Next.js creates a short-lived authenticated Cloudinary URL and streams it into a resumable Gemini Files API upload. It never creates a full in-memory video buffer. The temporary Gemini file is deleted after generation where supported.
 
 This server-to-server transfer is unavoidable with the documented Gemini video inputs and still consumes Vercel execution time and outbound bandwidth. Confirm the selected Vercel plan's function-duration and transfer constraints with a representative lecture before production rollout; this migration does not introduce a queue or background worker.
+
+Analysis execution uses one resumable stage per HTTP invocation. The analysis row carries a ten-minute ownership lease, so overlapping polling, refreshes, and platform retries do not duplicate provider work. The `/run` route and retained stage aliases set `maxDuration = 300`, the current maximum for Vercel Hobby with Fluid Compute. A Cloudinary-to-Gemini transcription can still exceed five minutes; if that happens Vercel can terminate the invocation, the lease later expires, and a subsequent `/run` retries the incomplete stage. This protects persisted state but cannot guarantee that every large lecture finishes within Hobby's limit.
 
 ## Database setup and migrations
 
@@ -147,7 +149,7 @@ The health endpoints confirm process connectivity, not model availability, Gemin
 
 ## Common production issues
 
-- **Neon is slow after idle:** Neon can auto-suspend. Runtime access uses its serverless adapter and the application retries only transient Prisma `P1001` first-connection failures up to three total attempts. No manual wake-up is required.
+- **Supabase database connection fails:** verify that `DATABASE_URL` is the pooled runtime URL, `DIRECT_URL` is the direct database URL, and both are configured only as server-side secrets.
 - **Cloudinary upload fails:** verify the upload signature clock, API key, 100 MB file limit, and Free-plan credit usage.
 - **Supabase PDF upload fails:** verify the bucket exists, is private, permits `application/pdf`, and has a 25 MB bucket file limit.
 - **First transcription/comparison is slow:** model files are downloading or loading. Persist the Hugging Face cache and allow sufficient startup/request time.

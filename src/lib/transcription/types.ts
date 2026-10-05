@@ -11,9 +11,13 @@ export interface TranscriptionAnalysis {
 
 export interface TranscriptionRepository {
   findById(id: string): Promise<TranscriptionAnalysis | null>;
-  claim(id: string): Promise<boolean>;
-  complete(id: string, transcriptText: string): Promise<boolean>;
-  fail(id: string): Promise<void>;
+  claim(id: string, leaseToken: string): Promise<boolean>;
+  complete(
+    id: string,
+    transcriptText: string,
+    leaseToken: string,
+  ): Promise<boolean>;
+  fail(id: string, leaseToken: string): Promise<void>;
 }
 
 export interface CloudinaryLocatedVideo {

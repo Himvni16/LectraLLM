@@ -1,13 +1,7 @@
-import { NextResponse } from "next/server";
-
-import { createGeminiTopicExtractionClient } from "@/lib/topic-extraction/gemini-client";
-import { prismaTopicExtractionRepository } from "@/lib/topic-extraction/repository";
-import {
-  extractAnalysisTopics,
-  TopicExtractionWorkflowError,
-} from "@/lib/topic-extraction/workflow";
+import { respondToAnalysisRun } from "@/lib/analysis-pipeline/http";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -15,35 +9,5 @@ interface RouteContext {
 
 export async function POST(_request: Request, context: RouteContext) {
   const { id } = await context.params;
-
-  try {
-    const result = await extractAnalysisTopics(id, {
-      client: createGeminiTopicExtractionClient(),
-      repository: prismaTopicExtractionRepository,
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof TopicExtractionWorkflowError) {
-      if (error.code === "TOPIC_EXTRACTION_FAILED") {
-        console.error("Analysis topic extraction failed.", error.cause);
-      }
-
-      return NextResponse.json(
-        { error: { code: error.code, message: error.message } },
-        { status: error.statusCode },
-      );
-    }
-
-    console.error("Unexpected topic extraction error.", error);
-    return NextResponse.json(
-      {
-        error: {
-          code: "TOPIC_EXTRACTION_FAILED",
-          message: "Topics could not be extracted.",
-        },
-      },
-      { status: 500 },
-    );
-  }
+  return respondToAnalysisRun(id);
 }

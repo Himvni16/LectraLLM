@@ -10,7 +10,7 @@ assuming that a free quota is unlimited.
 ```text
 Browser ──signed upload──> Cloudinary Free (lecture video, up to 100 MB)
        └─signed upload──> Supabase Storage Free (private PDF, up to 25 MB)
-       └─small JSON─────> Vercel Hobby / Next.js ──> Neon Free
+       └─small JSON─────> Vercel Hobby / Next.js ──> Supabase PostgreSQL
                                              └────> Gemini free tier
 ```
 
@@ -67,16 +67,15 @@ memory, CPU, invocation, and bandwidth quotas still apply to analysis work.
 References: [Vercel Hobby](https://vercel.com/docs/plans/hobby),
 [Function limits](https://vercel.com/docs/functions/limitations).
 
-### Neon Free and Gemini free tier
+### Supabase PostgreSQL and Gemini free tier
 
-Keep the existing database on a Neon Free project and monitor its storage and
-compute allowance; uploaded media is not stored in Neon. Keep the Gemini API
+Use the Supabase PostgreSQL project for relational data and monitor its storage
+and compute allowance; uploaded media is not stored in PostgreSQL. Keep the Gemini API
 project on its Free tier without attaching billing. Gemini request and token
 limits are model- and project-specific and are visible in Google AI Studio;
 requests stop or return quota errors when those limits are reached.
 
-References: [Neon Free plan](https://neon.com/docs/manage/endpoints/),
-[Gemini billing](https://ai.google.dev/gemini-api/docs/billing/),
+References: [Gemini billing](https://ai.google.dev/gemini-api/docs/billing/),
 [Gemini rate limits](https://ai.google.dev/gemini-api/docs/rate-limits).
 
 ## Secrets

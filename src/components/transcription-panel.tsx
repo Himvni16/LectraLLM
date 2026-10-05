@@ -11,7 +11,6 @@ import {
 } from "@/components/ui";
 import {
   getAnalysisStatusLabel,
-  isTerminalAnalysisStatus,
   shouldPollAnalysis,
 } from "@/lib/analysis-pipeline/presentation";
 import type { DashboardMatch } from "@/lib/analysis-dashboard";
@@ -46,7 +45,6 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
   const [analysis, setAnalysis] = useState(initialAnalysis);
   const [isPipelineRequestActive, setIsPipelineRequestActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const hasAutomaticallyStarted = useRef(false);
   const requestInFlight = useRef(false);
 
   const refreshAnalysis = useCallback(async () => {
@@ -61,8 +59,8 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
     return nextAnalysis;
   }, [initialAnalysis.id]);
 
-  const startPipeline = useCallback(async () => {
-    if (requestInFlight.current) return;
+  const startPipeline = useCallback(async (): Promise<AnalysisView | null> => {
+    if (requestInFlight.current) return null;
 
     requestInFlight.current = true;
     setIsPipelineRequestActive(true);
@@ -75,13 +73,14 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
       );
 
       if (!response.ok) throw new Error("Analysis pipeline failed");
-      await refreshAnalysis();
+      return await refreshAnalysis();
     } catch {
       setError(GENERIC_FAILURE_MESSAGE);
       try {
-        await refreshAnalysis();
+        return await refreshAnalysis();
       } catch {
         // Keep the safe pipeline message when a follow-up status read also fails.
+        return null;
       }
     } finally {
       requestInFlight.current = false;
@@ -90,38 +89,29 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
   }, [initialAnalysis.id, refreshAnalysis]);
 
   useEffect(() => {
-    if (
-      !hasAutomaticallyStarted.current &&
-      !isTerminalAnalysisStatus(initialAnalysis.status)
-    ) {
-      hasAutomaticallyStarted.current = true;
-      void startPipeline();
-    }
-  }, [initialAnalysis.status, startPipeline]);
-
-  useEffect(() => {
     if (!shouldPollAnalysis(analysis.status)) return;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
 
     const poll = async () => {
-      try {
-        const nextAnalysis = await refreshAnalysis();
-        if (cancelled || !shouldPollAnalysis(nextAnalysis.status)) return;
-      } catch {
-        if (cancelled) return;
+      const nextAnalysis = await startPipeline();
+      if (
+        cancelled ||
+        (nextAnalysis && !shouldPollAnalysis(nextAnalysis.status))
+      ) {
+        return;
       }
 
       timer = setTimeout(poll, 2000);
     };
 
-    timer = setTimeout(poll, 1500);
+    timer = setTimeout(poll, 250);
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [analysis.status, refreshAnalysis]);
+  }, [analysis.status, startPipeline]);
 
   const failed = analysis.status === "FAILED";
   const completed = analysis.status === "COMPLETED";

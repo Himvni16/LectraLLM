@@ -29,6 +29,7 @@ const transcription: AiTranscriptionResult = {
   segments: [],
   model: "gemini-3.8-flash",
 };
+const leaseToken = "lease-1";
 
 function createRepository(
   currentAnalysis: TranscriptionAnalysis | null = analysis,
@@ -61,6 +62,7 @@ describe("analysis transcription workflow", () => {
     await expect(
       transcribeAnalysis("missing", {
         client: { transcribe: vi.fn() },
+        leaseToken,
         repository,
         videoLocator: createVideoLocator(),
       }),
@@ -82,6 +84,7 @@ describe("analysis transcription workflow", () => {
     await expect(
       transcribeAnalysis(analysis.id, {
         client: { transcribe: vi.fn() },
+        leaseToken,
         repository,
         videoLocator,
       }),
@@ -89,7 +92,7 @@ describe("analysis transcription workflow", () => {
       code: "VIDEO_UNAVAILABLE",
       statusCode: 409,
     });
-    expect(repository.fail).toHaveBeenCalledWith(analysis.id);
+    expect(repository.fail).toHaveBeenCalledWith(analysis.id, leaseToken);
     expect(repository.claim).not.toHaveBeenCalled();
   });
 
@@ -114,15 +117,17 @@ describe("analysis transcription workflow", () => {
 
     const result = await transcribeAnalysis(analysis.id, {
       client,
+      leaseToken,
       repository,
       videoLocator: createVideoLocator(),
     });
 
     expect(currentStatus).toBe(AnalysisStatus.EXTRACTING_PDF);
-    expect(repository.claim).toHaveBeenCalledWith(analysis.id);
+    expect(repository.claim).toHaveBeenCalledWith(analysis.id, leaseToken);
     expect(repository.complete).toHaveBeenCalledWith(
       analysis.id,
       transcription.text,
+      leaseToken,
     );
     expect(result.status).toBe(AnalysisStatus.EXTRACTING_PDF);
     expect(result.text).toBe(transcription.text);
@@ -142,6 +147,7 @@ describe("analysis transcription workflow", () => {
     await expect(
       transcribeAnalysis(analysis.id, {
         client,
+        leaseToken,
         repository,
         videoLocator: createVideoLocator(),
       }),
@@ -149,10 +155,11 @@ describe("analysis transcription workflow", () => {
       text: transcription.text,
       status: AnalysisStatus.EXTRACTING_PDF,
     });
-    expect(repository.claim).toHaveBeenCalledWith(analysis.id);
+    expect(repository.claim).toHaveBeenCalledWith(analysis.id, leaseToken);
     expect(repository.complete).toHaveBeenCalledWith(
       analysis.id,
       transcription.text,
+      leaseToken,
     );
   });
 
@@ -167,6 +174,7 @@ describe("analysis transcription workflow", () => {
     await expect(
       transcribeAnalysis(analysis.id, {
         client,
+        leaseToken,
         repository,
         videoLocator: createVideoLocator(),
       }),
@@ -175,7 +183,7 @@ describe("analysis transcription workflow", () => {
       statusCode: 502,
       message: "The lecture could not be transcribed. You can retry this analysis.",
     });
-    expect(repository.fail).toHaveBeenCalledWith(analysis.id);
+    expect(repository.fail).toHaveBeenCalledWith(analysis.id, leaseToken);
     expect(repository.complete).not.toHaveBeenCalled();
   });
 
@@ -189,6 +197,7 @@ describe("analysis transcription workflow", () => {
     await expect(
       transcribeAnalysis(analysis.id, {
         client: { transcribe: vi.fn() },
+        leaseToken,
         repository,
         videoLocator: createVideoLocator(),
       }),

@@ -40,6 +40,7 @@ const comparisonResult = {
     },
   ],
 };
+const leaseToken = "lease-1";
 
 function createRepository(
   currentAnalysis: TopicComparisonAnalysis | null = analysis,
@@ -69,6 +70,7 @@ describe("topic comparison workflow", () => {
     await expect(
       compareAnalysisTopics("missing", {
         client: createClient(),
+        leaseToken,
         repository: createRepository(null),
       }),
     ).rejects.toMatchObject({ code: "ANALYSIS_NOT_FOUND", statusCode: 404 });
@@ -78,7 +80,11 @@ describe("topic comparison workflow", () => {
       status: AnalysisStatus.EXTRACTING_TOPICS,
     });
     await expect(
-      compareAnalysisTopics(analysis.id, { client: createClient(), repository }),
+      compareAnalysisTopics(analysis.id, {
+        client: createClient(),
+        leaseToken,
+        repository,
+      }),
     ).rejects.toMatchObject({
       code: "COMPARISON_NOT_ALLOWED",
       statusCode: 409,
@@ -94,6 +100,7 @@ describe("topic comparison workflow", () => {
     await expect(
       compareAnalysisTopics(analysis.id, {
         client: createClient(),
+        leaseToken,
         repository: withoutVideo,
       }),
     ).rejects.toMatchObject({ code: "VIDEO_TOPICS_REQUIRED" });
@@ -107,6 +114,7 @@ describe("topic comparison workflow", () => {
     await expect(
       compareAnalysisTopics(analysis.id, {
         client: createClient(),
+        leaseToken,
         repository: withoutPdf,
       }),
     ).rejects.toMatchObject({ code: "PDF_TOPICS_REQUIRED" });
@@ -118,6 +126,7 @@ describe("topic comparison workflow", () => {
 
     const result = await compareAnalysisTopics(analysis.id, {
       client,
+      leaseToken,
       repository,
     });
 
@@ -126,10 +135,12 @@ describe("topic comparison workflow", () => {
       analysis.topics.slice(2).map(({ id, name }) => ({ id, name })),
     );
     expect(repository.replaceAndComplete).toHaveBeenCalledTimes(1);
-    const [, matches, score] = repository.replaceAndComplete.mock.calls[0];
+    const [, matches, score, owner] =
+      repository.replaceAndComplete.mock.calls[0];
     expect(matches).toEqual(comparisonResult.matches);
     expect(score).toBeInstanceOf(Prisma.Decimal);
     expect(score.toString()).toBe("50");
+    expect(owner).toBe(leaseToken);
     expect(result).toEqual({
       analysisId: analysis.id,
       status: AnalysisStatus.COMPLETED,
@@ -159,10 +170,11 @@ describe("topic comparison workflow", () => {
     await expect(
       compareAnalysisTopics(analysis.id, {
         client: createClient(),
+        leaseToken,
         repository,
       }),
     ).resolves.toMatchObject({ status: AnalysisStatus.COMPLETED });
-    expect(repository.claim).toHaveBeenCalledWith(analysis.id);
+    expect(repository.claim).toHaveBeenCalledWith(analysis.id, leaseToken);
   });
 
   it("marks the analysis FAILED when the comparison provider fails", async () => {
@@ -174,14 +186,14 @@ describe("topic comparison workflow", () => {
     };
 
     await expect(
-      compareAnalysisTopics(analysis.id, { client, repository }),
+      compareAnalysisTopics(analysis.id, { client, leaseToken, repository }),
     ).rejects.toMatchObject({
       code: "COMPARISON_FAILED",
       statusCode: 502,
       message: "Topics could not be compared. You can retry this analysis.",
     });
     expect(repository.replaceAndComplete).not.toHaveBeenCalled();
-    expect(repository.fail).toHaveBeenCalledWith(analysis.id);
+    expect(repository.fail).toHaveBeenCalledWith(analysis.id, leaseToken);
   });
 
   it("marks failure if atomic completion loses its state race", async () => {
@@ -191,9 +203,10 @@ describe("topic comparison workflow", () => {
     await expect(
       compareAnalysisTopics(analysis.id, {
         client: createClient(),
+        leaseToken,
         repository,
       }),
     ).rejects.toMatchObject({ code: "COMPARISON_FAILED" });
-    expect(repository.fail).toHaveBeenCalledWith(analysis.id);
+    expect(repository.fail).toHaveBeenCalledWith(analysis.id, leaseToken);
   });
 });

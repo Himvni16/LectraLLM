@@ -28,6 +28,7 @@ export class TopicComparisonWorkflowError extends Error {
 
 interface TopicComparisonWorkflowDependencies {
   client: TopicComparisonClient;
+  leaseToken: string;
   repository: TopicComparisonRepository;
 }
 
@@ -79,7 +80,10 @@ export async function compareAnalysisTopics(
     );
   }
 
-  const claimed = await dependencies.repository.claim(analysis.id);
+  const claimed = await dependencies.repository.claim(
+    analysis.id,
+    dependencies.leaseToken,
+  );
   if (!claimed) {
     throw new TopicComparisonWorkflowError(
       "COMPARISON_NOT_ALLOWED",
@@ -102,6 +106,7 @@ export async function compareAnalysisTopics(
       analysis.id,
       result.matches,
       overallSimilarityScore,
+      dependencies.leaseToken,
     );
     if (!completed) {
       throw new Error("The analysis state changed during topic comparison.");
@@ -125,7 +130,7 @@ export async function compareAnalysisTopics(
       })),
     };
   } catch (error) {
-    await dependencies.repository.fail(analysis.id);
+    await dependencies.repository.fail(analysis.id, dependencies.leaseToken);
     throw new TopicComparisonWorkflowError(
       "COMPARISON_FAILED",
       "Topics could not be compared. You can retry this analysis.",

@@ -23,7 +23,7 @@ export const prismaTopicComparisonRepository: TopicComparisonRepository = {
     );
   },
 
-  async claim(id) {
+  async claim(id, leaseToken) {
     const result = await withPrismaRetry("analysis.claimTopicComparison", () =>
       prisma.analysis.updateMany({
         where: {
@@ -31,6 +31,8 @@ export const prismaTopicComparisonRepository: TopicComparisonRepository = {
           status: { in: [AnalysisStatus.COMPARING, AnalysisStatus.FAILED] },
           topics: { some: { source: TopicSource.VIDEO } },
           AND: { topics: { some: { source: TopicSource.PDF } } },
+          processingToken: leaseToken,
+          processingExpiresAt: { gt: new Date() },
         },
         data: { status: AnalysisStatus.COMPARING },
       }),
@@ -39,14 +41,21 @@ export const prismaTopicComparisonRepository: TopicComparisonRepository = {
     return result.count === 1;
   },
 
-  replaceAndComplete(id, matches, overallSimilarityScore) {
+  replaceAndComplete(id, matches, overallSimilarityScore, leaseToken) {
     return withPrismaRetry("analysis.replaceTopicComparison", () =>
       prisma.$transaction(async (transaction) => {
         const transition = await transaction.analysis.updateMany({
-          where: { id, status: AnalysisStatus.COMPARING },
+          where: {
+            id,
+            status: AnalysisStatus.COMPARING,
+            processingToken: leaseToken,
+            processingExpiresAt: { gt: new Date() },
+          },
           data: {
             status: AnalysisStatus.COMPLETED,
             overallSimilarityScore,
+            processingToken: null,
+            processingExpiresAt: null,
           },
         });
 
@@ -75,11 +84,20 @@ export const prismaTopicComparisonRepository: TopicComparisonRepository = {
     );
   },
 
-  async fail(id) {
+  async fail(id, leaseToken) {
     await withPrismaRetry("analysis.failTopicComparison", () =>
       prisma.analysis.updateMany({
-        where: { id, status: AnalysisStatus.COMPARING },
-        data: { status: AnalysisStatus.FAILED },
+        where: {
+          id,
+          status: AnalysisStatus.COMPARING,
+          processingToken: leaseToken,
+          processingExpiresAt: { gt: new Date() },
+        },
+        data: {
+          status: AnalysisStatus.FAILED,
+          processingToken: null,
+          processingExpiresAt: null,
+        },
       }),
     );
   },

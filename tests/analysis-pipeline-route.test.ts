@@ -26,6 +26,27 @@ describe("POST /api/analyses/[id]/run", () => {
     expect(mocks.runAnalysisPipeline).not.toHaveBeenCalled();
   });
 
+  it("returns the staged run contract", async () => {
+    mocks.runAnalysisPipeline.mockResolvedValue({
+      analysisId: "analysis-1",
+      status: "EXTRACTING_PDF",
+      workPerformed: true,
+      requiresAnotherRun: true,
+    });
+
+    const response = await POST(new Request("http://localhost"), {
+      params: Promise.resolve({ id: "analysis-1" }),
+    });
+
+    await expect(response.json()).resolves.toEqual({
+      analysisId: "analysis-1",
+      status: "EXTRACTING_PDF",
+      workPerformed: true,
+      requiresAnotherRun: true,
+    });
+    expect(response.status).toBe(200);
+  });
+
   it("never returns raw internal errors to the browser", async () => {
     mocks.runAnalysisPipeline.mockRejectedValue(
       new Error("Gemini key=secret at C:\\private\\model"),

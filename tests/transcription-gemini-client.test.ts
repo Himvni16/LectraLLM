@@ -21,7 +21,7 @@ const video: CloudinaryLocatedVideo = {
 
 describe("Gemini transcription client", () => {
   it("keeps production transcription entrypoints off the FastAPI client", async () => {
-    const sources = await Promise.all(
+    const [routeSource, workflowSource] = await Promise.all(
       [
         path.join(
           process.cwd(),
@@ -43,8 +43,9 @@ describe("Gemini transcription client", () => {
       ].map((filePath) => readFile(filePath, "utf8")),
     );
 
-    for (const source of sources) {
-      expect(source).toContain("createGeminiTranscriptionClient");
+    expect(routeSource).toContain("respondToAnalysisRun");
+    expect(workflowSource).toContain("createGeminiTranscriptionClient");
+    for (const source of [routeSource, workflowSource]) {
       expect(source).not.toContain("createAiTranscriptionClient");
       expect(source).not.toContain("/transcribe");
     }

@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 
-import {
-  AnalysisPipelineError,
-  runAnalysisPipeline,
-} from "@/lib/analysis-pipeline/workflow";
+import { respondToAnalysisRun } from "@/lib/analysis-pipeline/http";
 
 export const runtime = "nodejs";
-export const maxDuration = 1800;
+export const maxDuration = 300;
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -31,26 +28,5 @@ export async function POST(_request: Request, context: RouteContext) {
     );
   }
 
-  try {
-    return NextResponse.json(await runAnalysisPipeline(id));
-  } catch (error) {
-    if (error instanceof AnalysisPipelineError) {
-      return NextResponse.json(
-        { error: { code: error.code, message: error.message } },
-        { status: error.statusCode },
-      );
-    }
-
-    console.error("Analysis pipeline failed.", error);
-    return NextResponse.json(
-      {
-        error: {
-          code: "ANALYSIS_PIPELINE_FAILED",
-          message:
-            "We couldn't complete the analysis. You can retry from where it stopped.",
-        },
-      },
-      { status: 500 },
-    );
-  }
+  return respondToAnalysisRun(id);
 }

@@ -1,11 +1,10 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -41,12 +40,15 @@ model Analysis {
   transcriptText         String?        @db.Text
   pdfText                String?        @db.Text
   overallSimilarityScore Decimal?       @db.Decimal(5, 2)
+  processingToken        String?
+  processingExpiresAt    DateTime?
   createdAt              DateTime       @default(now())
   updatedAt              DateTime       @updatedAt
   topics                 Topic[]
   topicMatches           TopicMatch[]
 
   @@index([status])
+  @@index([processingExpiresAt])
 }
 
 model Topic {

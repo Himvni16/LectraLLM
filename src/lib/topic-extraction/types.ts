@@ -29,13 +29,14 @@ export interface TopicExtractionClient {
 
 export interface TopicExtractionRepository {
   findById(id: string): Promise<TopicExtractionAnalysis | null>;
-  claim(id: string): Promise<boolean>;
+  claim(id: string, leaseToken: string): Promise<boolean>;
   replaceAndComplete(
     id: string,
     videoTopics: readonly ExtractedTopic[],
     pdfTopics: readonly ExtractedTopic[],
+    leaseToken: string,
   ): Promise<boolean>;
-  fail(id: string): Promise<void>;
+  fail(id: string, leaseToken: string): Promise<void>;
 }
 
 export interface TopicExtractionSuccessResponse {

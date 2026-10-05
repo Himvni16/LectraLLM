@@ -24,13 +24,15 @@ export const prismaPdfExtractionRepository: PdfExtractionRepository = {
     );
   },
 
-  async claim(id) {
+  async claim(id, leaseToken) {
     const result = await withPrismaRetry("analysis.claimPdfExtraction", () =>
       prisma.analysis.updateMany({
         where: {
           id,
           status: { in: [AnalysisStatus.EXTRACTING_PDF, AnalysisStatus.FAILED] },
           transcriptText: { not: null },
+          processingToken: leaseToken,
+          processingExpiresAt: { gt: new Date() },
         },
         data: {
           status: AnalysisStatus.EXTRACTING_PDF,
@@ -42,13 +44,20 @@ export const prismaPdfExtractionRepository: PdfExtractionRepository = {
     return result.count === 1;
   },
 
-  async complete(id, pdfText) {
+  async complete(id, pdfText, leaseToken) {
     const result = await withPrismaRetry("analysis.completePdfExtraction", () =>
       prisma.analysis.updateMany({
-        where: { id, status: AnalysisStatus.EXTRACTING_PDF },
+        where: {
+          id,
+          status: AnalysisStatus.EXTRACTING_PDF,
+          processingToken: leaseToken,
+          processingExpiresAt: { gt: new Date() },
+        },
         data: {
           pdfText,
           status: AnalysisStatus.EXTRACTING_TOPICS,
+          processingToken: null,
+          processingExpiresAt: null,
         },
       }),
     );
@@ -56,7 +65,7 @@ export const prismaPdfExtractionRepository: PdfExtractionRepository = {
     return result.count === 1;
   },
 
-  async fail(id) {
+  async fail(id, leaseToken) {
     await withPrismaRetry("analysis.failPdfExtraction", () =>
       prisma.analysis.updateMany({
         where: {
@@ -65,10 +74,14 @@ export const prismaPdfExtractionRepository: PdfExtractionRepository = {
             in: [AnalysisStatus.EXTRACTING_PDF, AnalysisStatus.FAILED],
           },
           transcriptText: { not: null },
+          processingToken: leaseToken,
+          processingExpiresAt: { gt: new Date() },
         },
         data: {
           status: AnalysisStatus.FAILED,
           pdfText: null,
+          processingToken: null,
+          processingExpiresAt: null,
         },
       }),
     );

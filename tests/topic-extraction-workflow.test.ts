@@ -22,6 +22,7 @@ const videoResult: AiTopicExtractionResult = {
 const pdfResult: AiTopicExtractionResult = {
   topics: [{ name: "Deadlock Prevention", confidence: 0.9 }],
 };
+const leaseToken = "lease-1";
 
 function createRepository(
   currentAnalysis: TopicExtractionAnalysis | null = analysis,
@@ -56,7 +57,7 @@ describe("analysis topic extraction workflow", () => {
     const client = createClient();
 
     await expect(
-      extractAnalysisTopics("missing", { client, repository }),
+      extractAnalysisTopics("missing", { client, leaseToken, repository }),
     ).rejects.toMatchObject({ code: "ANALYSIS_NOT_FOUND", statusCode: 404 });
     expect(repository.claim).not.toHaveBeenCalled();
     expect(client.extract).not.toHaveBeenCalled();
@@ -71,6 +72,7 @@ describe("analysis topic extraction workflow", () => {
     await expect(
       extractAnalysisTopics(analysis.id, {
         client: createClient(),
+        leaseToken,
         repository,
       }),
     ).rejects.toMatchObject({
@@ -86,6 +88,7 @@ describe("analysis topic extraction workflow", () => {
     await expect(
       extractAnalysisTopics(analysis.id, {
         client: createClient(),
+        leaseToken,
         repository,
       }),
     ).rejects.toMatchObject({ code: "TRANSCRIPT_REQUIRED", statusCode: 409 });
@@ -98,6 +101,7 @@ describe("analysis topic extraction workflow", () => {
     await expect(
       extractAnalysisTopics(analysis.id, {
         client: createClient(),
+        leaseToken,
         repository,
       }),
     ).rejects.toMatchObject({ code: "PDF_TEXT_REQUIRED", statusCode: 409 });
@@ -110,6 +114,7 @@ describe("analysis topic extraction workflow", () => {
 
     const result = await extractAnalysisTopics(analysis.id, {
       client,
+      leaseToken,
       repository,
     });
 
@@ -126,6 +131,7 @@ describe("analysis topic extraction workflow", () => {
       analysis.id,
       videoResult.topics,
       pdfResult.topics,
+      leaseToken,
     );
     expect(result).toEqual({
       analysisId: analysis.id,
@@ -144,10 +150,11 @@ describe("analysis topic extraction workflow", () => {
 
     const result = await extractAnalysisTopics(analysis.id, {
       client: createClient(),
+      leaseToken,
       repository,
     });
 
-    expect(repository.claim).toHaveBeenCalledWith(analysis.id);
+    expect(repository.claim).toHaveBeenCalledWith(analysis.id, leaseToken);
     expect(result.status).toBe(AnalysisStatus.COMPARING);
   });
 
@@ -163,14 +170,14 @@ describe("analysis topic extraction workflow", () => {
     };
 
     await expect(
-      extractAnalysisTopics(analysis.id, { client, repository }),
+      extractAnalysisTopics(analysis.id, { client, leaseToken, repository }),
     ).rejects.toMatchObject({
       code: "TOPIC_EXTRACTION_FAILED",
       statusCode: 502,
       message: "Topics could not be extracted. You can retry this analysis.",
     });
     expect(repository.replaceAndComplete).not.toHaveBeenCalled();
-    expect(repository.fail).toHaveBeenCalledWith(analysis.id);
+    expect(repository.fail).toHaveBeenCalledWith(analysis.id, leaseToken);
   });
 
   it("rejects a concurrent state change before provider calls", async () => {
@@ -179,7 +186,7 @@ describe("analysis topic extraction workflow", () => {
     const client = createClient();
 
     await expect(
-      extractAnalysisTopics(analysis.id, { client, repository }),
+      extractAnalysisTopics(analysis.id, { client, leaseToken, repository }),
     ).rejects.toMatchObject({ code: "TOPIC_EXTRACTION_NOT_ALLOWED" });
     expect(client.extract).not.toHaveBeenCalled();
     expect(repository.replaceAndComplete).not.toHaveBeenCalled();
