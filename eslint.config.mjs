@@ -8,8 +8,6 @@ export default defineConfig([
   globalIgnores([
     ".next/**",
     "coverage/**",
-    "ai-service/**",
     "next-env.d.ts",
   ]),
 ]);
-

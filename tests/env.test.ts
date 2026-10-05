@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  getAiServiceUrl,
   getAiTranscriptionTimeoutMs,
   getGeminiApiKey,
   getGeminiEmbeddingDimensions,
@@ -17,7 +16,6 @@ import {
 } from "@/lib/env";
 
 const originalDatabaseUrl = process.env.DATABASE_URL;
-const originalAiServiceUrl = process.env.AI_SERVICE_URL;
 const originalVideoMaxSize = process.env.VIDEO_MAX_SIZE_MB;
 const originalPdfMaxSize = process.env.PDF_MAX_SIZE_MB;
 const originalTranscriptionTimeout =
@@ -48,12 +46,6 @@ afterEach(() => {
     delete process.env.DATABASE_URL;
   } else {
     process.env.DATABASE_URL = originalDatabaseUrl;
-  }
-
-  if (originalAiServiceUrl === undefined) {
-    delete process.env.AI_SERVICE_URL;
-  } else {
-    process.env.AI_SERVICE_URL = originalAiServiceUrl;
   }
 
   if (originalVideoMaxSize === undefined) {
@@ -135,15 +127,8 @@ describe("server environment validation", () => {
     );
   });
 
-  it("normalizes the configured AI service URL", () => {
-    process.env.AI_SERVICE_URL = "http://127.0.0.1:8000/";
-
-    expect(getAiServiceUrl()).toBe("http://127.0.0.1:8000");
-  });
-
   it("validates all required server configuration", () => {
     process.env.DATABASE_URL = "postgresql://localhost/lectrallm";
-    process.env.AI_SERVICE_URL = "http://127.0.0.1:8000";
     process.env.GEMINI_API_KEY = "test-key";
     process.env.CLOUDINARY_CLOUD_NAME = "cloud";
     process.env.CLOUDINARY_API_KEY = "api-key";

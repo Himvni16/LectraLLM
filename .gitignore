@@ -15,19 +15,6 @@ coverage/
 *.db-journal
 prisma/generated/
 
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-.venv/
-venv/
-env/
-
 # Temporary files and logs
 *.log
 *.tmp

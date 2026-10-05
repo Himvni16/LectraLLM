@@ -2,7 +2,6 @@ import "server-only";
 
 type ServerEnvName =
   | "DATABASE_URL"
-  | "AI_SERVICE_URL"
   | "GEMINI_API_KEY"
   | "CLOUDINARY_CLOUD_NAME"
   | "CLOUDINARY_API_KEY"
@@ -56,18 +55,6 @@ export function requireServerEnv(name: ServerEnvName): string {
   }
 
   return value;
-}
-
-export function getAiServiceUrl(): string {
-  const value = requireServerEnv("AI_SERVICE_URL");
-
-  try {
-    return new URL(value).toString().replace(/\/$/, "");
-  } catch {
-    throw new Error(
-      "AI_SERVICE_URL must be a valid absolute URL, for example http://127.0.0.1:8000.",
-    );
-  }
 }
 
 export function getGeminiApiKey(): string {
@@ -245,7 +232,6 @@ export function getSupabaseStorageConfig(): SupabaseStorageConfig {
 
 export function validateServerEnv(): void {
   requireServerEnv("DATABASE_URL");
-  getAiServiceUrl();
   getGeminiApiKey();
   getGeminiTranscriptionModel();
   getGeminiTopicModel();

@@ -47,7 +47,7 @@ function provider(
 }
 
 describe("Gemini transcription client", () => {
-  it("keeps production transcription entrypoints off FastAPI and long polling loops", async () => {
+  it("keeps production transcription on the direct Gemini path without long polling loops", async () => {
     const [routeSource, pipelineSource, clientSource] = await Promise.all(
       [
         path.join(
