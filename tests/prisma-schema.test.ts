@@ -21,6 +21,7 @@ describe("Phase 1 Prisma types", () => {
       pdfStoragePath: "development/notes.pdf",
       status: AnalysisStatus.UPLOADED,
       transcriptText: null,
+      transcriptionProviderFile: null,
       pdfText: null,
       overallSimilarityScore: new Prisma.Decimal("82.50"),
       processingToken: null,

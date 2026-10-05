@@ -63,7 +63,7 @@ OCR and unrelated AI workflows are **NOT IMPLEMENTED**. FastAPI does not access 
 
 ## Database role
 
-Supabase PostgreSQL is the relational system of record for each video-and-PDF analysis, its extracted topics, best-match results, and overall similarity score. The hot-reload-safe Prisma singleton uses the pooled `DATABASE_URL` for application runtime queries. Prisma CLI, schema, and migration operations use the direct `DIRECT_URL` configured on the datasource. A bounded `P1001`-only retry remains at the existing Analysis database boundaries as a defense against transient first-connection failures.
+Supabase PostgreSQL is the relational system of record for each video-and-PDF analysis, its extracted topics, best-match results, and overall similarity score. The hot-reload-safe Prisma singleton uses `PrismaPg` with the transaction-pooler `DATABASE_URL` for application runtime queries. Schema validation and client generation remain Prisma CLI operations. The isolated PostgreSQL migration runner uses the same transaction-pooler `DATABASE_URL`, transaction-scoped advisory locking, checked-in Prisma migration folders, raw-file SHA-256 checksums, and Prisma-compatible `_prisma_migrations` history. It re-checks migration state after acquiring the lock for each migration and does not depend on session affinity. A bounded `P1001`-only retry remains at the existing Analysis database boundaries as a defense against transient first-connection failures.
 
 Phase 1 defines exactly three application models: `Analysis`, `Topic`, and `TopicMatch`. The schema stores file metadata and paths, processing status, nullable future-extraction results, topic sources, and future semantic matches. It does not perform any processing.
 
@@ -89,7 +89,7 @@ This local filesystem implementation has no external object-storage provider. A 
 
 Browser requests identify only an analysis ID. Next.js loads that record and revalidates its database-controlled Cloudinary public ID, authenticated delivery type, format, and size before transcription. Clients cannot supply download URLs or storage paths to the Gemini boundary.
 
-Gemini's documented direct video-URL input supports YouTube, not arbitrary Cloudinary videos. Next.js therefore creates a short-lived authenticated Cloudinary download URL and streams the response into a resumable Gemini Files API upload without buffering the full video. It waits for the file to become active, sends the exact transcript-only prompt to the configured Gemini model, deletes the temporary Gemini file where supported, and returns the legacy TypeScript result shape with transcript text plus nullable metadata fields. Workflow status, persistence, failure, and retry behavior remain unchanged.
+Gemini's documented direct video-URL input supports YouTube, not arbitrary Cloudinary videos. Next.js therefore creates a short-lived authenticated Cloudinary download URL and streams the response into a resumable Gemini Files API upload without buffering the full video. The upload invocation persists only the Gemini file name in `Analysis.transcriptionProviderFile` and exits. Later leased `/run` invocations perform one file-state check: `PROCESSING` returns normally, `ACTIVE` generates and atomically persists the transcript, and an expired/not-found file is cleared so a later invocation can upload again. The row stays `TRANSCRIBING` throughout these substeps. Completion clears the provider field and advances to `EXTRACTING_PDF`; temporary-file cleanup is best effort.
 
 ## PDF extraction boundary
 

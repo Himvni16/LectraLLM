@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -38,6 +39,7 @@ model Analysis {
   pdfStoragePath         String
   status                 AnalysisStatus @default(UPLOADED)
   transcriptText         String?        @db.Text
+  transcriptionProviderFile String?
   pdfText                String?        @db.Text
   overallSimilarityScore Decimal?       @db.Decimal(5, 2)
   processingToken        String?

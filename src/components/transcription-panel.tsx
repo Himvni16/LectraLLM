@@ -103,7 +103,7 @@ export function TranscriptionPanel({ initialAnalysis }: TranscriptionPanelProps)
         return;
       }
 
-      timer = setTimeout(poll, 2000);
+      timer = setTimeout(poll, 5000);
     };
 
     timer = setTimeout(poll, 250);

@@ -3,7 +3,7 @@ import { AnalysisStatus } from "@prisma/client";
 import type {
   TranscriptionClient,
   TranscriptionRepository,
-  TranscriptionSuccessResponse,
+  TranscriptionStepResponse,
   VideoLocator,
 } from "@/lib/transcription/types";
 
@@ -32,10 +32,57 @@ interface TranscriptionWorkflowDependencies {
   videoLocator: VideoLocator;
 }
 
+async function bestEffortDelete(
+  client: TranscriptionClient,
+  providerFile: string,
+): Promise<void> {
+  try {
+    await client.deleteFile(providerFile);
+  } catch {
+    // A saved transcript or ownership decision must survive cleanup failure.
+  }
+}
+
+function response(
+  analysis: {
+    id: string;
+    videoFileName: string;
+    pdfFileName: string;
+  },
+  outcome: TranscriptionStepResponse["outcome"],
+  status: AnalysisStatus = AnalysisStatus.TRANSCRIBING,
+): TranscriptionStepResponse {
+  return {
+    analysisId: analysis.id,
+    status,
+    videoFileName: analysis.videoFileName,
+    pdfFileName: analysis.pdfFileName,
+    outcome,
+  };
+}
+
+function ownershipLost(error?: unknown): TranscriptionWorkflowError {
+  return new TranscriptionWorkflowError(
+    "TRANSCRIPTION_NOT_ALLOWED",
+    "The analysis lease changed during transcription.",
+    409,
+    error === undefined ? undefined : { cause: error },
+  );
+}
+
+function providerFailure(error?: unknown): TranscriptionWorkflowError {
+  return new TranscriptionWorkflowError(
+    "TRANSCRIPTION_FAILED",
+    "The lecture could not be transcribed. You can retry this analysis.",
+    502,
+    error === undefined ? undefined : { cause: error },
+  );
+}
+
 export async function transcribeAnalysis(
   analysisId: string,
   dependencies: TranscriptionWorkflowDependencies,
-): Promise<TranscriptionSuccessResponse> {
+): Promise<TranscriptionStepResponse> {
   const analysis = await dependencies.repository.findById(analysisId);
 
   if (!analysis) {
@@ -48,6 +95,7 @@ export async function transcribeAnalysis(
 
   if (
     analysis.status !== AnalysisStatus.UPLOADED &&
+    analysis.status !== AnalysisStatus.TRANSCRIBING &&
     analysis.status !== AnalysisStatus.FAILED
   ) {
     throw new TranscriptionWorkflowError(
@@ -57,69 +105,147 @@ export async function transcribeAnalysis(
     );
   }
 
-  let video;
-
-  try {
-    video = await dependencies.videoLocator.locate(
-      analysis.videoStoragePath,
-      analysis.videoFileName,
-    );
-  } catch (error) {
-    await dependencies.repository.fail(analysis.id, dependencies.leaseToken);
-    throw new TranscriptionWorkflowError(
-      "VIDEO_UNAVAILABLE",
-      "The stored lecture video is unavailable.",
-      409,
-      { cause: error },
-    );
-  }
-
   const claimed = await dependencies.repository.claim(
     analysis.id,
     dependencies.leaseToken,
   );
+  if (!claimed) throw ownershipLost();
 
-  if (!claimed) {
-    throw new TranscriptionWorkflowError(
-      "TRANSCRIPTION_NOT_ALLOWED",
-      "The analysis status changed before transcription could start.",
-      409,
-    );
-  }
-
-  try {
-    const transcription = await dependencies.client.transcribe(video);
-    const transcriptText = transcription.text.trim();
-
-    if (!transcriptText) {
-      throw new Error("The transcription service returned an empty transcript.");
+  const persistedProviderFile = analysis.transcriptionProviderFile;
+  if (!persistedProviderFile) {
+    let video;
+    try {
+      video = await dependencies.videoLocator.locate(
+        analysis.videoStoragePath,
+        analysis.videoFileName,
+      );
+    } catch (error) {
+      const failed = await dependencies.repository.fail(
+        analysis.id,
+        dependencies.leaseToken,
+        false,
+      );
+      if (!failed) throw ownershipLost(error);
+      throw new TranscriptionWorkflowError(
+        "VIDEO_UNAVAILABLE",
+        "The stored lecture video is unavailable.",
+        409,
+        { cause: error },
+      );
     }
 
-    const completed = await dependencies.repository.complete(
+    let uploadedFile;
+    try {
+      uploadedFile = await dependencies.client.upload(video);
+    } catch (error) {
+      const failed = await dependencies.repository.fail(
+        analysis.id,
+        dependencies.leaseToken,
+        false,
+      );
+      if (!failed) throw ownershipLost(error);
+      throw providerFailure(error);
+    }
+
+    if (uploadedFile.state === "FAILED") {
+      const failed = await dependencies.repository.fail(
+        analysis.id,
+        dependencies.leaseToken,
+        false,
+      );
+      await bestEffortDelete(dependencies.client, uploadedFile.name);
+      if (!failed) throw ownershipLost();
+      throw providerFailure();
+    }
+
+    const persisted = await dependencies.repository.persistProviderFile(
       analysis.id,
-      transcriptText,
+      uploadedFile.name,
       dependencies.leaseToken,
     );
-
-    if (!completed) {
-      throw new Error("The analysis status changed during transcription.");
+    if (!persisted) {
+      await bestEffortDelete(dependencies.client, uploadedFile.name);
+      throw ownershipLost();
     }
 
-    return {
-      ...transcription,
-      text: transcriptText,
-      analysisId: analysis.id,
-      status: AnalysisStatus.EXTRACTING_PDF,
-      videoFileName: analysis.videoFileName,
-      pdfFileName: analysis.pdfFileName,
-    };
-  } catch (error) {
-    await dependencies.repository.fail(analysis.id, dependencies.leaseToken);
-    throw new TranscriptionWorkflowError(
-      "TRANSCRIPTION_FAILED",
-      "The lecture could not be transcribed. You can retry this analysis.",
-      502,
-      { cause: error },
-    );
+    return response(analysis, "UPLOADED");
   }
+
+  let providerFile;
+  try {
+    providerFile = await dependencies.client.getFile(persistedProviderFile);
+  } catch (error) {
+    const failed = await dependencies.repository.fail(
+      analysis.id,
+      dependencies.leaseToken,
+      false,
+    );
+    if (!failed) throw ownershipLost(error);
+    throw providerFailure(error);
+  }
+
+  if (providerFile.state === "PROCESSING") {
+    return response(analysis, "PROCESSING");
+  }
+
+  if (providerFile.state === "NOT_FOUND") {
+    const cleared = await dependencies.repository.clearProviderFile(
+      analysis.id,
+      persistedProviderFile,
+      dependencies.leaseToken,
+    );
+    if (!cleared) throw ownershipLost();
+    return response(analysis, "PROVIDER_EXPIRED");
+  }
+
+  if (providerFile.state === "FAILED") {
+    const failed = await dependencies.repository.fail(
+      analysis.id,
+      dependencies.leaseToken,
+      true,
+    );
+    if (failed) {
+      await bestEffortDelete(dependencies.client, persistedProviderFile);
+    }
+    if (!failed) throw ownershipLost();
+    throw providerFailure();
+  }
+
+  let transcription;
+  try {
+    transcription = await dependencies.client.generate(providerFile);
+  } catch (error) {
+    const failed = await dependencies.repository.fail(
+      analysis.id,
+      dependencies.leaseToken,
+      false,
+    );
+    if (!failed) throw ownershipLost(error);
+    throw providerFailure(error);
+  }
+
+  const transcriptText = transcription.text.trim();
+  if (!transcriptText) {
+    const failed = await dependencies.repository.fail(
+      analysis.id,
+      dependencies.leaseToken,
+      false,
+    );
+    if (!failed) throw ownershipLost();
+    throw providerFailure();
+  }
+
+  const completed = await dependencies.repository.complete(
+    analysis.id,
+    persistedProviderFile,
+    transcriptText,
+    dependencies.leaseToken,
+  );
+  if (!completed) throw ownershipLost();
+
+  await bestEffortDelete(dependencies.client, persistedProviderFile);
+  return {
+    ...response(analysis, "COMPLETED", AnalysisStatus.EXTRACTING_PDF),
+    transcription: { ...transcription, text: transcriptText },
+  };
 }

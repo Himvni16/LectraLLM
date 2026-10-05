@@ -18,6 +18,7 @@ export const prismaTranscriptionRepository: TranscriptionRepository = {
           videoStoragePath: true,
           status: true,
           transcriptText: true,
+          transcriptionProviderFile: true,
         },
       }),
     );
@@ -28,13 +29,18 @@ export const prismaTranscriptionRepository: TranscriptionRepository = {
       prisma.analysis.updateMany({
         where: {
           id,
-          status: { in: [AnalysisStatus.UPLOADED, AnalysisStatus.FAILED] },
+          status: {
+            in: [
+              AnalysisStatus.UPLOADED,
+              AnalysisStatus.TRANSCRIBING,
+              AnalysisStatus.FAILED,
+            ],
+          },
           processingToken: leaseToken,
           processingExpiresAt: { gt: new Date() },
         },
         data: {
           status: AnalysisStatus.TRANSCRIBING,
-          transcriptText: null,
         },
       }),
     );
@@ -42,17 +48,55 @@ export const prismaTranscriptionRepository: TranscriptionRepository = {
     return result.count === 1;
   },
 
-  async complete(id, transcriptText, leaseToken) {
+  async persistProviderFile(id, providerFile, leaseToken) {
+    const result = await withPrismaRetry(
+      "analysis.persistTranscriptionProviderFile",
+      () =>
+        prisma.analysis.updateMany({
+          where: {
+            id,
+            status: AnalysisStatus.TRANSCRIBING,
+            transcriptionProviderFile: null,
+            processingToken: leaseToken,
+            processingExpiresAt: { gt: new Date() },
+          },
+          data: { transcriptionProviderFile: providerFile },
+        }),
+    );
+    return result.count === 1;
+  },
+
+  async clearProviderFile(id, providerFile, leaseToken) {
+    const result = await withPrismaRetry(
+      "analysis.clearTranscriptionProviderFile",
+      () =>
+        prisma.analysis.updateMany({
+          where: {
+            id,
+            status: AnalysisStatus.TRANSCRIBING,
+            transcriptionProviderFile: providerFile,
+            processingToken: leaseToken,
+            processingExpiresAt: { gt: new Date() },
+          },
+          data: { transcriptionProviderFile: null },
+        }),
+    );
+    return result.count === 1;
+  },
+
+  async complete(id, providerFile, transcriptText, leaseToken) {
     const result = await withPrismaRetry("analysis.completeTranscription", () =>
       prisma.analysis.updateMany({
         where: {
           id,
           status: AnalysisStatus.TRANSCRIBING,
+          transcriptionProviderFile: providerFile,
           processingToken: leaseToken,
           processingExpiresAt: { gt: new Date() },
         },
         data: {
           transcriptText,
+          transcriptionProviderFile: null,
           status: AnalysisStatus.EXTRACTING_PDF,
           processingToken: null,
           processingExpiresAt: null,
@@ -63,8 +107,8 @@ export const prismaTranscriptionRepository: TranscriptionRepository = {
     return result.count === 1;
   },
 
-  async fail(id, leaseToken) {
-    await withPrismaRetry("analysis.failTranscription", () =>
+  async fail(id, leaseToken, clearProviderFile) {
+    const result = await withPrismaRetry("analysis.failTranscription", () =>
       prisma.analysis.updateMany({
         where: {
           id,
@@ -81,10 +125,12 @@ export const prismaTranscriptionRepository: TranscriptionRepository = {
         data: {
           status: AnalysisStatus.FAILED,
           transcriptText: null,
+          ...(clearProviderFile ? { transcriptionProviderFile: null } : {}),
           processingToken: null,
           processingExpiresAt: null,
         },
       }),
     );
+    return result.count === 1;
   },
 };

@@ -84,7 +84,7 @@ export type AnalysisRunAction =
 export function statusForStage(
   stage: Exclude<AnalysisPipelineStage, "completed">,
 ): AnalysisStatus {
-  if (stage === "transcription") return AnalysisStatus.UPLOADED;
+  if (stage === "transcription") return AnalysisStatus.TRANSCRIBING;
   if (stage === "pdf-extraction") return AnalysisStatus.EXTRACTING_PDF;
   if (stage === "topic-extraction") return AnalysisStatus.EXTRACTING_TOPICS;
   return AnalysisStatus.COMPARING;

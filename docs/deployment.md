@@ -37,7 +37,7 @@ Set these as server-side environment variables on the Next.js service:
 | Variable | Required | Production value |
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | Pooled Supabase PostgreSQL URL used by the application runtime |
-| `DIRECT_URL` | Yes for deployment operations | Direct Supabase PostgreSQL URL used by Prisma CLI and migrations |
+| `DIRECT_URL` | Only for direct Prisma CLI operations | Supabase direct/session URL; the custom PostgreSQL migration runner does not use it |
 | `AI_SERVICE_URL` | Yes for the retained health proxy | FastAPI base URL; production analysis stages do not use it |
 | `GEMINI_API_KEY` | Yes | Server-only Gemini Developer API key |
 | `GEMINI_TRANSCRIPTION_MODEL` | No | Video transcription model; default `gemini-3.8-flash` |
@@ -52,7 +52,7 @@ Set these as server-side environment variables on the Next.js service:
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only service-role key |
 | `SUPABASE_STORAGE_BUCKET` | Yes | Existing private PDF bucket |
 
-`DATABASE_URL` and `DIRECT_URL` are Supabase PostgreSQL secrets. Configure them through the hosting platform and never expose them through `NEXT_PUBLIC_*` variables. The web runtime uses the pooled URL; Prisma migration commands use `DIRECT_URL` from the schema datasource. `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` remain Storage/API credentials and are not Prisma connection URLs.
+`DATABASE_URL` and `DIRECT_URL` are Supabase PostgreSQL secrets. Configure them through the hosting platform and never expose them through `NEXT_PUBLIC_*` variables. The web runtime and custom PostgreSQL migration runner both use the transaction-pooler `DATABASE_URL`; the runner uses transaction-scoped advisory locking and does not require session affinity. For that Supabase transaction-pooler endpoint, application code removes conflicting SSL query parameters in memory and passes `ssl: { rejectUnauthorized: false }` directly to `pg`, keeping TLS enabled without relying on `pg-connection-string` certificate semantics. `DIRECT_URL` is reserved for Prisma CLI operations that specifically require a direct/session connection. `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` remain Storage/API credentials and are not Prisma connection URLs.
 
 ## AI service environment
 
@@ -78,11 +78,11 @@ The production analysis pipeline requires `GEMINI_API_KEY` in the Next.js server
 
 Lecture videos are stored under generated Cloudinary public IDs and PDFs under generated paths in a private Supabase Storage bucket. PostgreSQL stores only those stable identifiers. The browser uploads directly to each provider, so Vercel does not proxy the 100 MB video or 25 MB PDF request bodies. Configure the Supabase bucket as private with a 25 MB file-size limit and `application/pdf` as its allowed MIME type.
 
-Before transcription, Next.js revalidates the Cloudinary asset's type, authenticated delivery mode, format, and configured 100 MiB limit. Because Gemini supports arbitrary uploaded files but not arbitrary external video URLs, Next.js creates a short-lived authenticated Cloudinary URL and streams it into a resumable Gemini Files API upload. It never creates a full in-memory video buffer. The temporary Gemini file is deleted after generation where supported.
+Before transcription, Next.js revalidates the Cloudinary asset's type, authenticated delivery mode, format, and configured 100 MiB limit. Because Gemini supports arbitrary uploaded files but not arbitrary external video URLs, Next.js creates a short-lived authenticated Cloudinary URL and streams it into a resumable Gemini Files API upload. It never creates a full in-memory video buffer. The returned Gemini file name is stored durably, and later requests check it once rather than waiting in a polling loop. The temporary Gemini file is deleted after generation or permanent provider failure where possible.
 
-This server-to-server transfer is unavoidable with the documented Gemini video inputs and still consumes Vercel execution time and outbound bandwidth. Confirm the selected Vercel plan's function-duration and transfer constraints with a representative lecture before production rollout; this migration does not introduce a queue or background worker.
+This server-to-server transfer is unavoidable with the documented Gemini video inputs and still consumes Vercel execution time and outbound bandwidth. Confirm the selected Vercel plan's function-duration and transfer constraints with a representative lecture before production rollout; this migration does not introduce a queue or background worker. The Cloudinary-to-Gemini upload and Gemini transcript generation are now separate requests, but either remaining individual operation can still theoretically exceed 300 seconds.
 
-Analysis execution uses one resumable stage per HTTP invocation. The analysis row carries a ten-minute ownership lease, so overlapping polling, refreshes, and platform retries do not duplicate provider work. The `/run` route and retained stage aliases set `maxDuration = 300`, the current maximum for Vercel Hobby with Fluid Compute. A Cloudinary-to-Gemini transcription can still exceed five minutes; if that happens Vercel can terminate the invocation, the lease later expires, and a subsequent `/run` retries the incomplete stage. This protects persisted state but cannot guarantee that every large lecture finishes within Hobby's limit.
+Analysis execution uses one resumable stage per HTTP invocation. The analysis row carries a ten-minute ownership lease, so overlapping polling, refreshes, and platform retries do not duplicate provider work. Transcription further divides into upload, one-shot status checks, and generation while retaining the user-visible `TRANSCRIBING` status. `PROCESSING` is a normal response and the browser waits five seconds before invoking `/run` again. The `/run` route and retained stage aliases set `maxDuration = 300`, the current maximum for Vercel Hobby with Fluid Compute. If an upload or generation is terminated, the lease expires for recovery; a persisted Gemini file is reused, while a crash before its identifier is saved may leave an unavoidable temporary orphan and a later request uploads again.
 
 ## Database setup and migrations
 
@@ -94,10 +94,11 @@ From a trusted release environment with production variables set:
 npm ci
 npm run prisma:generate
 npx prisma validate
-npx prisma migrate deploy
+npm run db:migrate:status
+npm run db:migrate
 ```
 
-`migrate deploy` applies only the checked-in migrations and does not reset data. Back up the database according to the provider's operational guidance before applying migrations.
+The status command is read-only. The apply command uses the checked-in Prisma migration folders in lexical order, serializes against Prisma's PostgreSQL advisory lock, and records Prisma-compatible history. It refuses unresolved failures, checksum mismatches, or SQL that cannot be safely wrapped in its transaction policy. Back up the database according to the provider's operational guidance before applying migrations.
 
 For an optional non-production sample analysis, run `npm run prisma:seed` after migrations. Do not seed a production database unless that sample data is explicitly wanted.
 
@@ -141,7 +142,7 @@ The health endpoints confirm process connectivity, not model availability, Gemin
 2. Configure all server-side variables and secrets; confirm no secret has a `NEXT_PUBLIC_` prefix.
 3. Configure Cloudinary and the private Supabase PDF bucket before accepting uploads.
 4. Install pinned Python dependencies and Node lockfile dependencies.
-5. Generate Prisma Client, validate the schema, and run `prisma migrate deploy`.
+5. Generate Prisma Client, validate the schema, inspect `db:migrate:status`, and run `db:migrate`.
 6. Run the full web and AI test suites and build the Next.js production bundle.
 7. Start FastAPI, verify `/health`, then start Next.js and verify `/api/ai-health`.
 8. Perform one controlled workflow smoke test using non-sensitive sample files. Expect first model-backed requests to be slower while model caches warm.
@@ -149,7 +150,7 @@ The health endpoints confirm process connectivity, not model availability, Gemin
 
 ## Common production issues
 
-- **Supabase database connection fails:** verify that `DATABASE_URL` is the pooled runtime URL, `DIRECT_URL` is the direct database URL, and both are configured only as server-side secrets.
+- **Supabase database connection fails:** verify that `DATABASE_URL` is the transaction-pooler URL, no higher-precedence local environment file overrides it, and database variables are configured only as server-side secrets.
 - **Cloudinary upload fails:** verify the upload signature clock, API key, 100 MB file limit, and Free-plan credit usage.
 - **Supabase PDF upload fails:** verify the bucket exists, is private, permits `application/pdf`, and has a 25 MB bucket file limit.
 - **First transcription/comparison is slow:** model files are downloading or loading. Persist the Hugging Face cache and allow sufficient startup/request time.
@@ -158,7 +159,7 @@ The health endpoints confirm process connectivity, not model availability, Gemin
 - **Gemini extraction fails:** verify the AI-only API key, configured model availability, quota, and outbound network access. Provider details remain server-side.
 - **Proxy returns 503:** check FastAPI `/health`, the internal `AI_SERVICE_URL`, service networking, and TLS/DNS configuration. Browser responses intentionally omit connection internals.
 - **Large uploads fail:** confirm the browser is using the provider-signed URL rather than sending file bytes to a Next.js route.
-- **Prisma CLI cannot connect while runtime works:** verify `DIRECT_URL` is the direct endpoint and is available to the release environment; runtime uses the separate pooled `DATABASE_URL`.
+- **Prisma CLI cannot connect while runtime works:** direct Prisma CLI connectivity can still depend on `DIRECT_URL`; the application and custom migration runner use the transaction-pooler `DATABASE_URL` instead.
 
 ## Scope boundary
 

@@ -6,20 +6,37 @@ import type {
   AiTranscriptionResult,
   TranscriptionAnalysis,
   TranscriptionClient,
+  TranscriptionProviderFile,
   TranscriptionRepository,
   VideoLocator,
 } from "@/lib/transcription/types";
-import {
-  transcribeAnalysis,
-} from "@/lib/transcription/workflow";
+import { transcribeAnalysis } from "@/lib/transcription/workflow";
+
+const leaseToken = "lease-1";
+const providerName = "files/gemini-video-1";
 
 const analysis: TranscriptionAnalysis = {
   id: "analysis-1",
   videoFileName: "lecture.mp4",
   pdfFileName: "notes.pdf",
-  videoStoragePath: "storage/videos/generated.mp4",
-  status: AnalysisStatus.UPLOADED,
+  videoStoragePath: "lectrallm/videos/generated",
+  status: AnalysisStatus.TRANSCRIBING,
   transcriptText: null,
+  transcriptionProviderFile: null,
+};
+
+const processingFile: TranscriptionProviderFile = {
+  name: providerName,
+  state: "PROCESSING",
+  uri: null,
+  mimeType: null,
+};
+
+const activeFile: TranscriptionProviderFile = {
+  name: providerName,
+  state: "ACTIVE",
+  uri: "https://generativelanguage.googleapis.com/files/video-1",
+  mimeType: "video/mp4",
 };
 
 const transcription: AiTranscriptionResult = {
@@ -29,120 +46,70 @@ const transcription: AiTranscriptionResult = {
   segments: [],
   model: "gemini-3.8-flash",
 };
-const leaseToken = "lease-1";
 
 function createRepository(
   currentAnalysis: TranscriptionAnalysis | null = analysis,
 ): TranscriptionRepository & {
-  claim: ReturnType<typeof vi.fn<TranscriptionRepository["claim"]>>;
-  complete: ReturnType<typeof vi.fn<TranscriptionRepository["complete"]>>;
-  fail: ReturnType<typeof vi.fn<TranscriptionRepository["fail"]>>;
+  findById: ReturnType<typeof vi.fn>;
+  claim: ReturnType<typeof vi.fn>;
+  persistProviderFile: ReturnType<typeof vi.fn>;
+  clearProviderFile: ReturnType<typeof vi.fn>;
+  complete: ReturnType<typeof vi.fn>;
+  fail: ReturnType<typeof vi.fn>;
 } {
   return {
     findById: vi.fn(async () => currentAnalysis),
     claim: vi.fn(async () => true),
+    persistProviderFile: vi.fn(async () => true),
+    clearProviderFile: vi.fn(async () => true),
     complete: vi.fn(async () => true),
-    fail: vi.fn(async () => undefined),
+    fail: vi.fn(async () => true),
+  };
+}
+
+function createClient(
+  overrides: Partial<TranscriptionClient> = {},
+): TranscriptionClient {
+  return {
+    upload: vi.fn(async () => processingFile),
+    getFile: vi.fn(async () => processingFile),
+    generate: vi.fn(async () => transcription),
+    deleteFile: vi.fn(async () => undefined),
+    ...overrides,
   };
 }
 
 function createVideoLocator(): VideoLocator {
   return {
     locate: vi.fn(async () => ({
-      absolutePath: "C:\\private\\storage\\videos\\generated.mp4",
-      fileName: "lecture.mp4",
+      publicId: analysis.videoStoragePath,
+      fileName: analysis.videoFileName,
+      contentType: "video/mp4",
+      size: 1_024,
     })),
   };
 }
 
-describe("analysis transcription workflow", () => {
-  it("rejects an unknown analysis ID", async () => {
+describe("resumable analysis transcription workflow", () => {
+  it("rejects an unknown analysis ID without touching Gemini", async () => {
     const repository = createRepository(null);
+    const client = createClient();
 
     await expect(
       transcribeAnalysis("missing", {
-        client: { transcribe: vi.fn() },
+        client,
         leaseToken,
         repository,
         videoLocator: createVideoLocator(),
       }),
-    ).rejects.toMatchObject({
-      code: "ANALYSIS_NOT_FOUND",
-      statusCode: 404,
-    });
+    ).rejects.toMatchObject({ code: "ANALYSIS_NOT_FOUND", statusCode: 404 });
     expect(repository.claim).not.toHaveBeenCalled();
+    expect(client.upload).not.toHaveBeenCalled();
   });
 
-  it("handles a missing stored video and marks the analysis failed", async () => {
+  it("uploads once, persists the provider file, and exits without polling or generating", async () => {
     const repository = createRepository();
-    const videoLocator: VideoLocator = {
-      locate: vi.fn(async () => {
-        throw new StoredVideoUnavailableError();
-      }),
-    };
-
-    await expect(
-      transcribeAnalysis(analysis.id, {
-        client: { transcribe: vi.fn() },
-        leaseToken,
-        repository,
-        videoLocator,
-      }),
-    ).rejects.toMatchObject({
-      code: "VIDEO_UNAVAILABLE",
-      statusCode: 409,
-    });
-    expect(repository.fail).toHaveBeenCalledWith(analysis.id, leaseToken);
-    expect(repository.claim).not.toHaveBeenCalled();
-  });
-
-  it("claims TRANSCRIBING, persists text, and advances to EXTRACTING_PDF", async () => {
-    let currentStatus: AnalysisStatus = AnalysisStatus.UPLOADED;
-    const repository = createRepository();
-    repository.claim.mockImplementation(async () => {
-      currentStatus = AnalysisStatus.TRANSCRIBING;
-      return true;
-    });
-    const client: TranscriptionClient = {
-      transcribe: vi.fn(async () => {
-        expect(currentStatus).toBe(AnalysisStatus.TRANSCRIBING);
-        return transcription;
-      }),
-    };
-    repository.complete.mockImplementation(async (_id, transcriptText) => {
-      expect(transcriptText).toBe(transcription.text);
-      currentStatus = AnalysisStatus.EXTRACTING_PDF;
-      return true;
-    });
-
-    const result = await transcribeAnalysis(analysis.id, {
-      client,
-      leaseToken,
-      repository,
-      videoLocator: createVideoLocator(),
-    });
-
-    expect(currentStatus).toBe(AnalysisStatus.EXTRACTING_PDF);
-    expect(repository.claim).toHaveBeenCalledWith(analysis.id, leaseToken);
-    expect(repository.complete).toHaveBeenCalledWith(
-      analysis.id,
-      transcription.text,
-      leaseToken,
-    );
-    expect(result.status).toBe(AnalysisStatus.EXTRACTING_PDF);
-    expect(result.text).toBe(transcription.text);
-    expect(JSON.stringify(result)).not.toContain("C:\\private");
-    expect(JSON.stringify(result)).not.toContain("storage/videos");
-  });
-
-  it("allows a FAILED transcription to retry through the same transition", async () => {
-    const repository = createRepository({
-      ...analysis,
-      status: AnalysisStatus.FAILED,
-    });
-    const client: TranscriptionClient = {
-      transcribe: vi.fn(async () => transcription),
-    };
+    const client = createClient();
 
     await expect(
       transcribeAnalysis(analysis.id, {
@@ -152,24 +119,194 @@ describe("analysis transcription workflow", () => {
         videoLocator: createVideoLocator(),
       }),
     ).resolves.toMatchObject({
-      text: transcription.text,
-      status: AnalysisStatus.EXTRACTING_PDF,
+      outcome: "UPLOADED",
+      status: AnalysisStatus.TRANSCRIBING,
     });
-    expect(repository.claim).toHaveBeenCalledWith(analysis.id, leaseToken);
+
+    expect(client.upload).toHaveBeenCalledOnce();
+    expect(repository.persistProviderFile).toHaveBeenCalledWith(
+      analysis.id,
+      providerName,
+      leaseToken,
+    );
+    expect(client.getFile).not.toHaveBeenCalled();
+    expect(client.generate).not.toHaveBeenCalled();
+  });
+
+  it("does not duplicate provider work when another invocation owns the lease", async () => {
+    const repository = createRepository();
+    repository.claim.mockResolvedValue(false);
+    const client = createClient();
+
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        leaseToken: "overlapping-worker",
+        repository,
+        videoLocator: createVideoLocator(),
+      }),
+    ).rejects.toMatchObject({
+      code: "TRANSCRIPTION_NOT_ALLOWED",
+      statusCode: 409,
+    });
+    expect(client.upload).not.toHaveBeenCalled();
+    expect(client.getFile).not.toHaveBeenCalled();
+    expect(client.generate).not.toHaveBeenCalled();
+  });
+
+  it("treats PROCESSING as normal and never re-uploads persisted provider state", async () => {
+    const repository = createRepository({
+      ...analysis,
+      transcriptionProviderFile: providerName,
+    });
+    const client = createClient();
+
+    const result = await transcribeAnalysis(analysis.id, {
+      client,
+      leaseToken,
+      repository,
+      videoLocator: createVideoLocator(),
+    });
+
+    expect(result).toMatchObject({
+      outcome: "PROCESSING",
+      status: AnalysisStatus.TRANSCRIBING,
+    });
+    expect(client.getFile).toHaveBeenCalledWith(providerName);
+    expect(client.upload).not.toHaveBeenCalled();
+    expect(client.generate).not.toHaveBeenCalled();
+    expect(repository.fail).not.toHaveBeenCalled();
+  });
+
+  it("generates exactly once when ACTIVE, persists the transcript, advances, and cleans up", async () => {
+    const repository = createRepository({
+      ...analysis,
+      transcriptionProviderFile: providerName,
+    });
+    const client = createClient({ getFile: vi.fn(async () => activeFile) });
+
+    const result = await transcribeAnalysis(analysis.id, {
+      client,
+      leaseToken,
+      repository,
+      videoLocator: createVideoLocator(),
+    });
+
+    expect(client.generate).toHaveBeenCalledOnce();
+    expect(client.generate).toHaveBeenCalledWith(activeFile);
     expect(repository.complete).toHaveBeenCalledWith(
       analysis.id,
+      providerName,
       transcription.text,
       leaseToken,
     );
+    expect(client.deleteFile).toHaveBeenCalledWith(providerName);
+    expect(result).toMatchObject({
+      outcome: "COMPLETED",
+      status: AnalysisStatus.EXTRACTING_PDF,
+      transcription,
+    });
   });
 
-  it("marks the analysis FAILED when the Gemini provider fails", async () => {
-    const repository = createRepository();
-    const client: TranscriptionClient = {
-      transcribe: vi.fn(async () => {
-        throw new Error("engine failed at C:\\private\\video.mp4");
-      }),
+  it("clears an expired provider file and lets a later invocation upload again", async () => {
+    let current: TranscriptionAnalysis = {
+      ...analysis,
+      transcriptionProviderFile: providerName,
     };
+    const repository = createRepository(current);
+    repository.findById.mockImplementation(async () => current);
+    repository.clearProviderFile.mockImplementation(async () => {
+      current = { ...current, transcriptionProviderFile: null };
+      return true;
+    });
+    const client = createClient({
+      getFile: vi.fn(async (): Promise<TranscriptionProviderFile> => ({
+        name: providerName,
+        state: "NOT_FOUND",
+        uri: null,
+        mimeType: null,
+      })),
+    });
+
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        leaseToken,
+        repository,
+        videoLocator: createVideoLocator(),
+      }),
+    ).resolves.toMatchObject({ outcome: "PROVIDER_EXPIRED" });
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        leaseToken,
+        repository,
+        videoLocator: createVideoLocator(),
+      }),
+    ).resolves.toMatchObject({ outcome: "UPLOADED" });
+
+    expect(repository.clearProviderFile).toHaveBeenCalledWith(
+      analysis.id,
+      providerName,
+      leaseToken,
+    );
+    expect(client.upload).toHaveBeenCalledOnce();
+  });
+
+  it("fails and clears an unusable provider file before cleanup", async () => {
+    const repository = createRepository({
+      ...analysis,
+      transcriptionProviderFile: providerName,
+    });
+    const client = createClient({
+      getFile: vi.fn(async (): Promise<TranscriptionProviderFile> => ({
+        name: providerName,
+        state: "FAILED",
+        uri: null,
+        mimeType: null,
+      })),
+    });
+
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        leaseToken,
+        repository,
+        videoLocator: createVideoLocator(),
+      }),
+    ).rejects.toMatchObject({ code: "TRANSCRIPTION_FAILED", statusCode: 502 });
+    expect(repository.fail).toHaveBeenCalledWith(
+      analysis.id,
+      leaseToken,
+      true,
+    );
+    expect(client.deleteFile).toHaveBeenCalledWith(providerName);
+  });
+
+  it("reuses persisted provider state when retrying from FAILED", async () => {
+    const repository = createRepository({
+      ...analysis,
+      status: AnalysisStatus.FAILED,
+      transcriptionProviderFile: providerName,
+    });
+    const client = createClient({ getFile: vi.fn(async () => activeFile) });
+
+    await transcribeAnalysis(analysis.id, {
+      client,
+      leaseToken,
+      repository,
+      videoLocator: createVideoLocator(),
+    });
+
+    expect(client.upload).not.toHaveBeenCalled();
+    expect(client.getFile).toHaveBeenCalledWith(providerName);
+    expect(client.generate).toHaveBeenCalledOnce();
+  });
+
+  it("cleans a newly uploaded provider file if the lease owner cannot persist it", async () => {
+    const repository = createRepository();
+    repository.persistProviderFile.mockResolvedValue(false);
+    const client = createClient();
 
     await expect(
       transcribeAnalysis(analysis.id, {
@@ -179,24 +316,122 @@ describe("analysis transcription workflow", () => {
         videoLocator: createVideoLocator(),
       }),
     ).rejects.toMatchObject({
-      code: "TRANSCRIPTION_FAILED",
-      statusCode: 502,
-      message: "The lecture could not be transcribed. You can retry this analysis.",
+      code: "TRANSCRIPTION_NOT_ALLOWED",
+      statusCode: 409,
     });
-    expect(repository.fail).toHaveBeenCalledWith(analysis.id, leaseToken);
-    expect(repository.complete).not.toHaveBeenCalled();
+    expect(client.deleteFile).toHaveBeenCalledWith(providerName);
+    expect(repository.fail).not.toHaveBeenCalled();
   });
 
-  it("rejects transcription from a later workflow status", async () => {
+  it("does not let cleanup failure undo a completed transcript", async () => {
+    const repository = createRepository({
+      ...analysis,
+      transcriptionProviderFile: providerName,
+    });
+    const client = createClient({
+      getFile: vi.fn(async () => activeFile),
+      deleteFile: vi.fn(async () => {
+        throw new Error("cleanup unavailable");
+      }),
+    });
+
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        leaseToken,
+        repository,
+        videoLocator: createVideoLocator(),
+      }),
+    ).resolves.toMatchObject({ outcome: "COMPLETED" });
+    expect(repository.complete).toHaveBeenCalledOnce();
+  });
+
+  it("does not clean or overwrite persisted state after losing ownership at completion", async () => {
+    const repository = createRepository({
+      ...analysis,
+      transcriptionProviderFile: providerName,
+    });
+    repository.complete.mockResolvedValue(false);
+    const client = createClient({ getFile: vi.fn(async () => activeFile) });
+
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        leaseToken: "stale-worker",
+        repository,
+        videoLocator: createVideoLocator(),
+      }),
+    ).rejects.toMatchObject({
+      code: "TRANSCRIPTION_NOT_ALLOWED",
+      statusCode: 409,
+    });
+    expect(client.deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("preserves reusable provider state when generation fails", async () => {
+    const repository = createRepository({
+      ...analysis,
+      transcriptionProviderFile: providerName,
+    });
+    const client = createClient({
+      getFile: vi.fn(async () => activeFile),
+      generate: vi.fn(async () => {
+        throw new Error("provider unavailable");
+      }),
+    });
+
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        leaseToken,
+        repository,
+        videoLocator: createVideoLocator(),
+      }),
+    ).rejects.toMatchObject({ code: "TRANSCRIPTION_FAILED" });
+    expect(repository.fail).toHaveBeenCalledWith(
+      analysis.id,
+      leaseToken,
+      false,
+    );
+    expect(client.deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("handles an unavailable stored video without contacting Gemini", async () => {
+    const repository = createRepository();
+    const client = createClient();
+    const videoLocator: VideoLocator = {
+      locate: vi.fn(async () => {
+        throw new StoredVideoUnavailableError();
+      }),
+    };
+
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        leaseToken,
+        repository,
+        videoLocator,
+      }),
+    ).rejects.toMatchObject({ code: "VIDEO_UNAVAILABLE", statusCode: 409 });
+    expect(repository.fail).toHaveBeenCalledWith(
+      analysis.id,
+      leaseToken,
+      false,
+    );
+    expect(client.upload).not.toHaveBeenCalled();
+  });
+
+  it("rejects a later workflow status before claiming or contacting Gemini", async () => {
     const repository = createRepository({
       ...analysis,
       status: AnalysisStatus.EXTRACTING_PDF,
       transcriptText: transcription.text,
     });
+    const client = createClient();
 
     await expect(
       transcribeAnalysis(analysis.id, {
-        client: { transcribe: vi.fn() },
+        client,
         leaseToken,
         repository,
         videoLocator: createVideoLocator(),
@@ -205,5 +440,7 @@ describe("analysis transcription workflow", () => {
       code: "TRANSCRIPTION_NOT_ALLOWED",
       statusCode: 409,
     });
+    expect(repository.claim).not.toHaveBeenCalled();
+    expect(client.upload).not.toHaveBeenCalled();
   });
 });

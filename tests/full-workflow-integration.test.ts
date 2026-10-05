@@ -96,21 +96,37 @@ describe("complete analysis workflow", () => {
     expect(upload.status).toBe(AnalysisStatus.UPLOADED);
     if (!state) throw new Error("Upload did not create an analysis.");
 
-    await transcribeAnalysis(state.id, {
+    let transcriptionProviderFile: string | null = null;
+    const transcriptionDependencies = {
       videoLocator: {
         locate: vi.fn(async () => ({
-          absolutePath: "C:\\private\\generated.mp4",
+          publicId: "lectrallm/videos/generated",
           fileName: "lecture.mp4",
+          contentType: "video/mp4",
+          size: 5,
         })),
       },
       client: {
-        transcribe: vi.fn(async () => ({
+        upload: vi.fn(async () => ({
+          name: "files/video-1",
+          state: "PROCESSING" as const,
+          uri: null,
+          mimeType: null,
+        })),
+        getFile: vi.fn(async () => ({
+          name: "files/video-1",
+          state: "ACTIVE" as const,
+          uri: "https://generativelanguage.googleapis.com/files/video-1",
+          mimeType: "video/mp4",
+        })),
+        generate: vi.fn(async () => ({
           text: " Deadlocks and resource allocation graphs. ",
           language: "en",
           durationSeconds: 60,
           segments: [],
-          model: "mock-whisper",
+          model: "gemini-3.8-flash",
         })),
+        deleteFile: vi.fn(async () => undefined),
       },
       leaseToken,
       repository: {
@@ -121,19 +137,35 @@ describe("complete analysis workflow", () => {
           videoStoragePath: state!.videoStoragePath,
           status: state!.status,
           transcriptText: state!.transcriptText,
+          transcriptionProviderFile,
         })),
         claim: vi.fn(async () => {
           setStatus(AnalysisStatus.TRANSCRIBING);
           return true;
         }),
-        complete: vi.fn(async (_id, transcriptText) => {
+        persistProviderFile: vi.fn(async (_id, providerFile) => {
+          transcriptionProviderFile = providerFile;
+          return true;
+        }),
+        clearProviderFile: vi.fn(async () => {
+          transcriptionProviderFile = null;
+          return true;
+        }),
+        complete: vi.fn(async (_id, _providerFile, transcriptText) => {
           state!.transcriptText = transcriptText;
+          transcriptionProviderFile = null;
           setStatus(AnalysisStatus.EXTRACTING_PDF);
           return true;
         }),
-        fail: vi.fn(async () => setStatus(AnalysisStatus.FAILED)),
+        fail: vi.fn(async () => {
+          setStatus(AnalysisStatus.FAILED);
+          return true;
+        }),
       },
-    });
+    };
+
+    await transcribeAnalysis(state.id, transcriptionDependencies);
+    await transcribeAnalysis(state.id, transcriptionDependencies);
 
     await extractAnalysisPdf(state.id, {
       pdfLocator: {

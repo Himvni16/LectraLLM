@@ -50,13 +50,13 @@ The web app reads `.env.local`, which is intentionally ignored by Git.
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | Pooled Supabase PostgreSQL URL used by application/runtime Prisma queries |
-| `DIRECT_URL` | Yes for Prisma CLI | Direct Supabase PostgreSQL URL used by migrations and administrative commands |
+| `DIRECT_URL` | Only for direct Prisma CLI operations | Supabase direct/session URL; the custom PostgreSQL migration runner does not use it |
 | `AI_SERVICE_URL` | Yes for legacy health proxy | Base URL used only by the retained FastAPI health proxy |
 | `GEMINI_API_KEY` | Yes | Server-only Gemini Developer API key |
 | `GEMINI_TRANSCRIPTION_MODEL` | No | Video transcription model; defaults to `gemini-3.8-flash` |
 | `VIDEO_MAX_SIZE_MB` | No | Lecture video limit in MiB; defaults to `100` |
 | `PDF_MAX_SIZE_MB` | No | Lecture PDF limit in MiB; defaults to `25` |
-| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Gemini Files upload, processing, and transcription timeout; defaults to `1800` seconds |
+| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Timeout for each Gemini Files API upload, status, or generation request; defaults to `1800` seconds |
 | `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary Free product-environment name |
 | `CLOUDINARY_API_KEY` | Yes | Cloudinary public API key returned only with narrowly scoped upload signatures |
 | `CLOUDINARY_API_SECRET` | Yes | Server-only Cloudinary signing and Admin API secret |
@@ -73,8 +73,8 @@ The AI service optionally reads `ai-service/.env`. Its `AI_CORS_ORIGINS` value i
 
 1. Provision a Supabase PostgreSQL database.
 2. Set `DATABASE_URL` in `.env.local` to the Supabase pooled runtime URL (typically the pooler host on port `6543`). The singleton application client uses Prisma's standard PostgreSQL connection configuration.
-3. Set `DIRECT_URL` to the corresponding direct Supabase database URL (typically `db.<project-ref>.supabase.co` on port `5432`). Prisma CLI, schema validation, and migration operations use this direct connection through the Prisma datasource configuration.
-4. For local development, apply the checked-in migrations with `npx prisma migrate dev`. For production, use `npx prisma migrate deploy`.
+3. Ensure no higher-precedence local environment file overrides `DATABASE_URL` with a stale connection. `DIRECT_URL` is only needed for Prisma CLI operations that require a direct/session connection.
+4. Check migration history with `npm run db:migrate:status`, then apply pending checked-in migrations with `npm run db:migrate`. The custom runner uses `DATABASE_URL`, transaction-scoped advisory locking, and checked-in Prisma migration folders as the source of truth.
 5. Run `npm run prisma:generate`.
 
 The migration creates only `Analysis`, `Topic`, and `TopicMatch`, plus their supporting enums and indexes. For optional development sample data, run `npm run prisma:seed` after applying the migration.
@@ -138,17 +138,18 @@ After a successful upload, open `/analyses/<analysis-id>` or follow the **Open a
 UPLOADED → TRANSCRIBING → EXTRACTING_PDF
 ```
 
-Next.js revalidates the authenticated Cloudinary asset attached to the selected `Analysis`, creates a short-lived signed download URL, and streams that response into a resumable Gemini Files API upload without buffering the full video in memory. Once Gemini marks the temporary file active, the configured `GEMINI_TRANSCRIPTION_MODEL` receives the video and the transcript-only prompt. The returned text is stored unchanged in `Analysis.transcriptText`; the Gemini temporary file is deleted on success or failure, and the original Cloudinary video remains unchanged.
+Next.js revalidates the authenticated Cloudinary asset attached to the selected `Analysis`, creates a short-lived signed download URL, and streams that response into a resumable Gemini Files API upload without buffering the full video in memory. It saves the returned Gemini file name in `Analysis.transcriptionProviderFile` and returns without waiting for Gemini to finish processing. Later `/run` requests check that file once: `PROCESSING` remains a normal `TRANSCRIBING` state, while `ACTIVE` invokes the configured `GEMINI_TRANSCRIPTION_MODEL` with the transcript-only prompt. A successful generation atomically stores `Analysis.transcriptText`, clears the provider file name, and advances to `EXTRACTING_PDF`. Temporary Gemini cleanup is best effort and never invalidates a saved transcript.
 
-Gemini does not accept an arbitrary Cloudinary video URL as direct video input. YouTube URLs are the documented direct-URL video case, and URL Context does not support video, so the Files API transfer is required. The transfer and model call still execute inside the Next.js request path; Vercel function duration remains a deployment concern and is intentionally not solved by this migration.
+Gemini does not accept an arbitrary Cloudinary video URL as direct video input. YouTube URLs are the documented direct-URL video case, and URL Context does not support video, so the Files API transfer is required. The upload and generation are separate resumable invocations, but either individual call can still theoretically exceed the Vercel Hobby 300-second function limit.
 
-To smoke-test an already uploaded production-shaped asset without changing an analysis, run:
+To smoke-test the resumable path without changing an analysis, upload a local video, then resume using the printed Gemini file name:
 
 ```powershell
-node --conditions=react-server --import tsx scripts/gemini-cloudinary-transcription-poc.ts "lectrallm/videos/<uuid>"
+node --conditions=react-server --import tsx scripts/gemini-cloudinary-transcription-poc.ts upload "C:\path\lecture.mp4"
+node --conditions=react-server --import tsx scripts/gemini-cloudinary-transcription-poc.ts resume "files/<gemini-file>"
 ```
 
-If transcription fails, the analysis becomes `FAILED` and can be retried from the analysis page. Browser responses do not include internal storage or temporary paths.
+If the provider file expires, its identifier is cleared and the next `/run` uploads again. Provider or generation failures retain reusable provider state where safe, mark the analysis `FAILED`, and can be retried from the analysis page. Browser responses do not include internal storage identifiers or temporary paths.
 
 The browser drives analysis through repeated `POST /api/analyses/<id>/run` calls. Each invocation performs at most one stage, then returns the persisted status and whether another run is required. A database-backed 10-minute lease prevents overlapping Vercel instances from running the same stage; expired leases can be reclaimed after an interrupted invocation. Completed transcript, PDF text, topic, and comparison artifacts are detected before provider work so retries resume at the earliest incomplete stage.
 
@@ -210,7 +211,7 @@ With both running, the web-side proxy health endpoint is `http://localhost:3000/
 
 ## Production deployment
 
-The production path uses the Next.js web service, Supabase PostgreSQL, Cloudinary, private Supabase Storage, and the Gemini Developer API. The retained FastAPI project is not called by production transcription and does not need to host faster-whisper for this path. Configure secrets through the hosting platform, run checked-in migrations with `npx prisma migrate deploy`, and build the web application with Node.js 20.19+ (Node.js 22 LTS recommended).
+The production path uses the Next.js web service, Supabase PostgreSQL, Cloudinary, private Supabase Storage, and the Gemini Developer API. The retained FastAPI project is not called by production transcription and does not need to host faster-whisper for this path. Configure secrets through the hosting platform, inspect checked-in migrations with `npm run db:migrate:status`, apply them with `npm run db:migrate`, and build the web application with Node.js 20.19+ (Node.js 22 LTS recommended).
 
 The complete commands, environment variables, storage/model-cache considerations, health checks, and troubleshooting guidance are in [docs/deployment.md](docs/deployment.md). Phase 8 makes the repository deployment-ready but does not deploy it to a hosting provider.
 

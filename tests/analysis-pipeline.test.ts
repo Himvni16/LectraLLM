@@ -107,7 +107,7 @@ describe("one-stage analysis orchestration", () => {
     expect(setup.repository.claimLease).toHaveBeenCalledWith({
       id: "analysis-1",
       expectedStatus: AnalysisStatus.UPLOADED,
-      claimedStatus: AnalysisStatus.UPLOADED,
+      claimedStatus: AnalysisStatus.TRANSCRIBING,
       token,
       now,
       expiresAt: new Date(now.getTime() + ANALYSIS_LEASE_DURATION_MS),

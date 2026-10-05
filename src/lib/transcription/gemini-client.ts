@@ -20,29 +20,30 @@ import {
 } from "@/lib/env";
 import type {
   AiTranscriptionResult,
-  LocatedVideo,
   TranscriptionClient,
+  TranscriptionProviderFile,
 } from "@/lib/transcription/types";
 
 const GEMINI_FILES_UPLOAD_URL =
   "https://generativelanguage.googleapis.com/upload/v1beta/files";
-const FILE_READY_POLL_INTERVAL_MS = 5_000;
 const CLOUDINARY_URL_LIFETIME_SECONDS = 10 * 60;
 
 export const GEMINI_TRANSCRIPTION_PROMPT = `Transcribe the spoken lecture content from this video accurately.
 Return only the transcript text.
 Do not summarize, explain, or add commentary.`;
 
-interface GeminiTranscriptionInput {
+interface GeminiUploadInput {
   downloadUrl: string;
   fileName: string;
   contentType: string;
   size: number;
-  model: string;
 }
 
 export interface GeminiTranscriptionProvider {
-  transcribe(input: GeminiTranscriptionInput): Promise<string>;
+  upload(input: GeminiUploadInput): Promise<TranscriptionProviderFile>;
+  getFile(name: string): Promise<TranscriptionProviderFile>;
+  generate(file: TranscriptionProviderFile, model: string): Promise<string>;
+  deleteFile(name: string): Promise<void>;
 }
 
 interface GeminiFilesApi {
@@ -57,8 +58,9 @@ interface GeminiFilesApi {
 }
 
 interface GeminiModelsApi {
-  generateContent(parameters: Parameters<GoogleGenAI["models"]["generateContent"]>[0]):
-    Promise<{ text?: string }>;
+  generateContent(
+    parameters: Parameters<GoogleGenAI["models"]["generateContent"]>[0],
+  ): Promise<{ text?: string }>;
 }
 
 interface GeminiApi {
@@ -70,7 +72,6 @@ interface GoogleGeminiTranscriptionProviderOptions {
   apiKey?: string;
   client?: GeminiApi;
   fetchImpl?: typeof fetch;
-  pollIntervalMs?: number;
   timeoutMs?: number;
 }
 
@@ -95,65 +96,53 @@ function videoFormat(contentType: string): string | null {
   return null;
 }
 
-function readUploadedFile(value: unknown): GeminiFile {
+function isNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error as { status?: unknown }).status === 404
+  );
+}
+
+function normalizeFile(
+  value: unknown,
+  fallbackName?: string,
+): TranscriptionProviderFile {
   if (!value || typeof value !== "object") {
     throw new GeminiTranscriptionClientError();
   }
-  const file = (value as { file?: unknown }).file;
-  if (!file || typeof file !== "object") {
-    throw new GeminiTranscriptionClientError();
+  const file = value as GeminiFile;
+  const name =
+    typeof file.name === "string" && file.name ? file.name : fallbackName;
+  if (!name) throw new GeminiTranscriptionClientError();
+
+  if (file.state === FileState.PROCESSING) {
+    return { name, state: "PROCESSING", uri: null, mimeType: null };
   }
-  const candidate = file as GeminiFile;
   if (
-    typeof candidate.name !== "string" ||
-    !candidate.name ||
-    typeof candidate.uri !== "string" ||
-    !candidate.uri ||
-    typeof candidate.mimeType !== "string" ||
-    !candidate.mimeType
+    file.state === FileState.ACTIVE &&
+    typeof file.uri === "string" &&
+    file.uri &&
+    typeof file.mimeType === "string" &&
+    file.mimeType
   ) {
-    throw new GeminiTranscriptionClientError();
+    return {
+      name,
+      state: "ACTIVE",
+      uri: file.uri,
+      mimeType: file.mimeType,
+    };
   }
-  return candidate;
+
+  return { name, state: "FAILED", uri: null, mimeType: null };
 }
 
-async function waitForActiveFile(
-  client: GeminiApi,
-  initialFile: GeminiFile,
-  signal: AbortSignal,
-  pollIntervalMs: number,
-): Promise<GeminiFile> {
-  let file = initialFile;
-
-  while (file.state !== FileState.ACTIVE) {
-    if (file.state === FileState.FAILED) {
-      throw new GeminiTranscriptionClientError();
-    }
-    if (!file.name) {
-      throw new GeminiTranscriptionClientError();
-    }
-
-    await new Promise<void>((resolve, reject) => {
-      const onAbort = () => {
-        clearTimeout(timer);
-        reject(signal.reason);
-      };
-      const timer = setTimeout(() => {
-        signal.removeEventListener("abort", onAbort);
-        resolve();
-      }, pollIntervalMs);
-      signal.addEventListener("abort", onAbort, { once: true });
-    });
-    file = await client.files.get({
-      name: file.name,
-      config: { abortSignal: signal },
-    });
-  }
-
-  if (!file.uri || !file.mimeType) {
+function readUploadedFile(value: unknown): TranscriptionProviderFile {
+  if (!value || typeof value !== "object" || !("file" in value)) {
     throw new GeminiTranscriptionClientError();
   }
-  return file;
+  return normalizeFile((value as { file: unknown }).file);
 }
 
 export function createGoogleGeminiTranscriptionProvider(
@@ -163,15 +152,11 @@ export function createGoogleGeminiTranscriptionProvider(
   const client =
     options.client ?? (new GoogleGenAI({ apiKey }) as unknown as GeminiApi);
   const fetchImpl = options.fetchImpl ?? fetch;
-  const pollIntervalMs =
-    options.pollIntervalMs ?? FILE_READY_POLL_INTERVAL_MS;
   const timeoutMs = options.timeoutMs ?? getAiTranscriptionTimeoutMs();
 
   return {
-    async transcribe(input) {
+    async upload(input) {
       const signal = AbortSignal.timeout(timeoutMs);
-      let geminiFileName: string | undefined;
-
       try {
         const startResponse = await fetchImpl(GEMINI_FILES_UPLOAD_URL, {
           method: "POST",
@@ -187,13 +172,9 @@ export function createGoogleGeminiTranscriptionProvider(
           },
           body: JSON.stringify({ file: { display_name: input.fileName } }),
         });
-        if (!startResponse.ok) {
-          throw new GeminiTranscriptionClientError();
-        }
+        if (!startResponse.ok) throw new GeminiTranscriptionClientError();
         const uploadUrl = startResponse.headers.get("x-goog-upload-url");
-        if (!uploadUrl) {
-          throw new GeminiTranscriptionClientError();
-        }
+        if (!uploadUrl) throw new GeminiTranscriptionClientError();
 
         const cloudinaryResponse = await fetchImpl(input.downloadUrl, {
           cache: "no-store",
@@ -226,46 +207,64 @@ export function createGoogleGeminiTranscriptionProvider(
           body: cloudinaryResponse.body,
         };
         const uploadResponse = await fetchImpl(uploadUrl, uploadRequest);
-        if (!uploadResponse.ok) {
-          throw new GeminiTranscriptionClientError();
-        }
-        const uploadedFile = readUploadedFile(await uploadResponse.json());
-        geminiFileName = uploadedFile.name;
-        const readyFile = await waitForActiveFile(
-          client,
-          uploadedFile,
-          signal,
-          pollIntervalMs,
-        );
+        if (!uploadResponse.ok) throw new GeminiTranscriptionClientError();
+        return readUploadedFile(await uploadResponse.json());
+      } catch (error) {
+        if (error instanceof GeminiTranscriptionClientError) throw error;
+        throw new GeminiTranscriptionClientError();
+      }
+    },
 
+    async getFile(name) {
+      try {
+        return normalizeFile(
+          await client.files.get({
+            name,
+            config: { abortSignal: AbortSignal.timeout(timeoutMs) },
+          }),
+          name,
+        );
+      } catch (error) {
+        if (isNotFoundError(error)) {
+          return { name, state: "NOT_FOUND", uri: null, mimeType: null };
+        }
+        if (error instanceof GeminiTranscriptionClientError) throw error;
+        throw new GeminiTranscriptionClientError();
+      }
+    },
+
+    async generate(file, model) {
+      if (file.state !== "ACTIVE" || !file.uri || !file.mimeType) {
+        throw new GeminiTranscriptionClientError();
+      }
+      try {
         const response = await client.models.generateContent({
-          model: input.model,
+          model,
           contents: [
             {
               role: "user",
               parts: [
-                createPartFromUri(readyFile.uri!, readyFile.mimeType!),
+                createPartFromUri(file.uri, file.mimeType),
                 { text: GEMINI_TRANSCRIPTION_PROMPT },
               ],
             },
           ],
-          config: { abortSignal: signal },
+          config: { abortSignal: AbortSignal.timeout(timeoutMs) },
         });
         return response.text ?? "";
-      } catch (error) {
-        if (error instanceof GeminiTranscriptionClientError) throw error;
+      } catch {
         throw new GeminiTranscriptionClientError();
-      } finally {
-        if (geminiFileName) {
-          try {
-            await client.files.delete({
-              name: geminiFileName,
-              config: { abortSignal: AbortSignal.timeout(5_000) },
-            });
-          } catch {
-            // Cleanup is best-effort; the Files API expires temporary files.
-          }
-        }
+      }
+    },
+
+    async deleteFile(name) {
+      try {
+        await client.files.delete({
+          name,
+          config: { abortSignal: AbortSignal.timeout(5_000) },
+        });
+      } catch {
+        // Cleanup is best-effort; Gemini Files are temporary.
       }
     },
   };
@@ -282,7 +281,7 @@ export function createGeminiTranscriptionClient(
   const videoStore = options.videoStore ?? createCloudinaryVideoStore();
 
   return {
-    async transcribe(video: LocatedVideo): Promise<AiTranscriptionResult> {
+    async upload(video) {
       if (!("publicId" in video)) {
         throw new GeminiTranscriptionClientError(
           "Gemini transcription requires a stored Cloudinary video.",
@@ -300,21 +299,23 @@ export function createGeminiTranscriptionClient(
         format,
         CLOUDINARY_URL_LIFETIME_SECONDS,
       );
-      const text = (
-        await provider.transcribe({
-          downloadUrl,
-          fileName: path.basename(video.fileName),
-          contentType: video.contentType,
-          size: video.size,
-          model,
-        })
-      ).trim();
+      return provider.upload({
+        downloadUrl,
+        fileName: path.basename(video.fileName),
+        contentType: video.contentType,
+        size: video.size,
+      });
+    },
+
+    getFile: (name) => provider.getFile(name),
+
+    async generate(file): Promise<AiTranscriptionResult> {
+      const text = (await provider.generate(file, model)).trim();
       if (!text) {
         throw new GeminiTranscriptionClientError(
           "Gemini returned an empty transcript.",
         );
       }
-
       return {
         text,
         language: null,
@@ -323,5 +324,7 @@ export function createGeminiTranscriptionClient(
         model,
       };
     },
+
+    deleteFile: (name) => provider.deleteFile(name),
   };
 }

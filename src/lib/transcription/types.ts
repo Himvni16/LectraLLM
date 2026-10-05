@@ -7,17 +7,33 @@ export interface TranscriptionAnalysis {
   videoStoragePath: string;
   status: AnalysisStatus;
   transcriptText: string | null;
+  transcriptionProviderFile: string | null;
 }
 
 export interface TranscriptionRepository {
   findById(id: string): Promise<TranscriptionAnalysis | null>;
   claim(id: string, leaseToken: string): Promise<boolean>;
+  persistProviderFile(
+    id: string,
+    providerFile: string,
+    leaseToken: string,
+  ): Promise<boolean>;
+  clearProviderFile(
+    id: string,
+    providerFile: string,
+    leaseToken: string,
+  ): Promise<boolean>;
   complete(
     id: string,
+    providerFile: string,
     transcriptText: string,
     leaseToken: string,
   ): Promise<boolean>;
-  fail(id: string, leaseToken: string): Promise<void>;
+  fail(
+    id: string,
+    leaseToken: string,
+    clearProviderFile: boolean,
+  ): Promise<boolean>;
 }
 
 export interface CloudinaryLocatedVideo {
@@ -52,13 +68,31 @@ export interface AiTranscriptionResult {
   model: string;
 }
 
-export interface TranscriptionClient {
-  transcribe(video: LocatedVideo): Promise<AiTranscriptionResult>;
+export type TranscriptionProviderFileState =
+  | "PROCESSING"
+  | "ACTIVE"
+  | "FAILED"
+  | "NOT_FOUND";
+
+export interface TranscriptionProviderFile {
+  name: string;
+  state: TranscriptionProviderFileState;
+  uri: string | null;
+  mimeType: string | null;
 }
 
-export interface TranscriptionSuccessResponse extends AiTranscriptionResult {
+export interface TranscriptionClient {
+  upload(video: LocatedVideo): Promise<TranscriptionProviderFile>;
+  getFile(name: string): Promise<TranscriptionProviderFile>;
+  generate(file: TranscriptionProviderFile): Promise<AiTranscriptionResult>;
+  deleteFile(name: string): Promise<void>;
+}
+
+export interface TranscriptionStepResponse {
   analysisId: string;
   status: AnalysisStatus;
   videoFileName: string;
   pdfFileName: string;
+  outcome: "UPLOADED" | "PROCESSING" | "PROVIDER_EXPIRED" | "COMPLETED";
+  transcription?: AiTranscriptionResult;
 }

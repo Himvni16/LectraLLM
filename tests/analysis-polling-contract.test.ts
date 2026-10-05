@@ -15,7 +15,7 @@ describe("analysis staged polling contract", () => {
     );
     expect(source).toContain("if (requestInFlight.current) return null");
     expect(source).toContain("const nextAnalysis = await startPipeline()");
-    expect(source).toContain("timer = setTimeout(poll, 2000)");
+    expect(source).toContain("timer = setTimeout(poll, 5000)");
     expect(source).toContain(
       "if (!shouldPollAnalysis(analysis.status)) return",
     );
