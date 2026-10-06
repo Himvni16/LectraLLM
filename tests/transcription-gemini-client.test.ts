@@ -147,6 +147,41 @@ describe("Gemini transcription client", () => {
 });
 
 describe("Gemini Files API resumable provider", () => {
+  it.each([
+    ["429", { status: 429 }, "RATE_LIMIT"],
+    ["5xx", { status: 503 }, "PROVIDER_5XX"],
+    [
+      "timeout",
+      Object.assign(new Error("request timed out"), { code: "ETIMEDOUT" }),
+      "PROVIDER_TIMEOUT",
+    ],
+    [
+      "socket reset",
+      Object.assign(new Error("socket reset"), { code: "ECONNRESET" }),
+      "NETWORK_RESET",
+    ],
+  ] as const)(
+    "preserves a safe retryable category for a Gemini %s failure",
+    async (_label, providerError, category) => {
+      const geminiProvider = createGoogleGeminiTranscriptionProvider({
+        apiKey: "test-key",
+        client: {
+          files: { get: vi.fn(), delete: vi.fn() },
+          models: {
+            generateContent: vi.fn(async () => {
+              throw providerError;
+            }),
+          },
+        },
+        timeoutMs: 5_000,
+      });
+
+      await expect(
+        geminiProvider.generate(activeFile, "gemini-3.8-flash"),
+      ).rejects.toMatchObject({ category, retryable: true });
+    },
+  );
+
   it("streams one Cloudinary video and returns immediately after upload", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

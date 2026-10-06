@@ -73,7 +73,7 @@ export class AnalysisPipelineError extends Error {
   }
 }
 
-export const ANALYSIS_LEASE_DURATION_MS = 10 * 60 * 1_000;
+export const ANALYSIS_LEASE_DURATION_MS = 6 * 60 * 1_000;
 
 function responseFor(
   analysisId: string,

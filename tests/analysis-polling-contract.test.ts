@@ -19,5 +19,8 @@ describe("analysis staged polling contract", () => {
     expect(source).toContain(
       "if (!shouldPollAnalysis(analysis.status)) return",
     );
+    expect(source).toContain('const failed = analysis.status === "FAILED"');
+    expect(source).toContain('{failed ? (');
+    expect(source).toContain('"Retry Analysis"');
   });
 });

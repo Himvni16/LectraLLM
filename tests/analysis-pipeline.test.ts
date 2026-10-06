@@ -89,6 +89,13 @@ function dependencies(initial: AnalysisResumeSnapshot, leaseAvailable = true) {
 }
 
 describe("one-stage analysis orchestration", () => {
+  it("limits killed-worker recovery to one minute beyond Vercel's maximum", () => {
+    const vercelHobbyMaximumMs = 300_000;
+
+    expect(ANALYSIS_LEASE_DURATION_MS).toBe(6 * 60 * 1_000);
+    expect(ANALYSIS_LEASE_DURATION_MS - vercelHobbyMaximumMs).toBe(60_000);
+  });
+
   it("runs transcription only for an UPLOADED analysis", async () => {
     const setup = dependencies(snapshot(AnalysisStatus.UPLOADED));
 
@@ -248,6 +255,24 @@ describe("one-stage analysis orchestration", () => {
     expect(overlap.transcribe).not.toHaveBeenCalled();
   });
 
+  it("releases the lease and remains nonterminal after retryable transcription", async () => {
+    const setup = dependencies(snapshot(AnalysisStatus.TRANSCRIBING));
+    setup.transcribe.mockImplementationOnce(async () => undefined);
+
+    await expect(
+      executeAnalysisPipeline("analysis-1", setup.deps),
+    ).resolves.toEqual({
+      analysisId: "analysis-1",
+      status: AnalysisStatus.TRANSCRIBING,
+      workPerformed: true,
+      requiresAnotherRun: true,
+    });
+    expect(setup.repository.releaseLease).toHaveBeenCalledWith(
+      "analysis-1",
+      token,
+    );
+  });
+
   it.each([
     [
       AnalysisStatus.EXTRACTING_TOPICS,
@@ -336,5 +361,6 @@ describe("analysis progress presentation", () => {
     expect(shouldPollAnalysis("COMPLETED")).toBe(false);
     expect(shouldPollAnalysis("FAILED")).toBe(false);
     expect(shouldPollAnalysis("COMPARING")).toBe(true);
+    expect(shouldPollAnalysis("TRANSCRIBING")).toBe(true);
   });
 });

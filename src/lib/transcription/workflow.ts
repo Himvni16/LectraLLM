@@ -1,5 +1,9 @@
 import { AnalysisStatus } from "@prisma/client";
 
+import {
+  classifyTranscriptionError,
+  type TranscriptionErrorCategory,
+} from "@/lib/transcription/errors";
 import type {
   TranscriptionClient,
   TranscriptionRepository,
@@ -30,6 +34,43 @@ interface TranscriptionWorkflowDependencies {
   leaseToken: string;
   repository: TranscriptionRepository;
   videoLocator: VideoLocator;
+  logger?: Pick<Console, "warn" | "error">;
+  now?: () => number;
+}
+
+type TranscriptionOperation =
+  | "video-location"
+  | "provider-upload"
+  | "provider-file-check"
+  | "transcript-generation";
+
+function logFailure(
+  dependencies: TranscriptionWorkflowDependencies,
+  input: {
+    analysisId: string;
+    category: TranscriptionErrorCategory;
+    elapsedMs: number;
+    operation: TranscriptionOperation;
+    providerFilePresent: boolean;
+    retryable: boolean;
+  },
+): void {
+  const logger = dependencies.logger ?? console;
+  const context = {
+    analysisId: input.analysisId,
+    stage: "transcription",
+    operation: input.operation,
+    retryable: input.retryable,
+    category: input.category,
+    providerFilePresent: input.providerFilePresent,
+    elapsedMs: input.elapsedMs,
+  };
+
+  if (input.retryable) {
+    logger.warn("Retryable transcription operation failed.", context);
+  } else {
+    logger.error("Terminal transcription operation failed.", context);
+  }
 }
 
 async function bestEffortDelete(
@@ -83,6 +124,8 @@ export async function transcribeAnalysis(
   analysisId: string,
   dependencies: TranscriptionWorkflowDependencies,
 ): Promise<TranscriptionStepResponse> {
+  const now = dependencies.now ?? Date.now;
+  const startedAt = now();
   const analysis = await dependencies.repository.findById(analysisId);
 
   if (!analysis) {
@@ -120,6 +163,18 @@ export async function transcribeAnalysis(
         analysis.videoFileName,
       );
     } catch (error) {
+      const classification = classifyTranscriptionError(error);
+      logFailure(dependencies, {
+        analysisId: analysis.id,
+        category: classification.category,
+        elapsedMs: Math.max(0, now() - startedAt),
+        operation: "video-location",
+        providerFilePresent: false,
+        retryable: classification.retryable,
+      });
+      if (classification.retryable) {
+        return response(analysis, "RETRYABLE");
+      }
       const failed = await dependencies.repository.fail(
         analysis.id,
         dependencies.leaseToken,
@@ -138,6 +193,18 @@ export async function transcribeAnalysis(
     try {
       uploadedFile = await dependencies.client.upload(video);
     } catch (error) {
+      const classification = classifyTranscriptionError(error);
+      logFailure(dependencies, {
+        analysisId: analysis.id,
+        category: classification.category,
+        elapsedMs: Math.max(0, now() - startedAt),
+        operation: "provider-upload",
+        providerFilePresent: false,
+        retryable: classification.retryable,
+      });
+      if (classification.retryable) {
+        return response(analysis, "RETRYABLE");
+      }
       const failed = await dependencies.repository.fail(
         analysis.id,
         dependencies.leaseToken,
@@ -148,6 +215,14 @@ export async function transcribeAnalysis(
     }
 
     if (uploadedFile.state === "FAILED") {
+      logFailure(dependencies, {
+        analysisId: analysis.id,
+        category: "PROVIDER_FILE_FAILED",
+        elapsedMs: Math.max(0, now() - startedAt),
+        operation: "provider-upload",
+        providerFilePresent: true,
+        retryable: false,
+      });
       const failed = await dependencies.repository.fail(
         analysis.id,
         dependencies.leaseToken,
@@ -175,6 +250,18 @@ export async function transcribeAnalysis(
   try {
     providerFile = await dependencies.client.getFile(persistedProviderFile);
   } catch (error) {
+    const classification = classifyTranscriptionError(error);
+    logFailure(dependencies, {
+      analysisId: analysis.id,
+      category: classification.category,
+      elapsedMs: Math.max(0, now() - startedAt),
+      operation: "provider-file-check",
+      providerFilePresent: true,
+      retryable: classification.retryable,
+    });
+    if (classification.retryable) {
+      return response(analysis, "RETRYABLE");
+    }
     const failed = await dependencies.repository.fail(
       analysis.id,
       dependencies.leaseToken,
@@ -199,6 +286,14 @@ export async function transcribeAnalysis(
   }
 
   if (providerFile.state === "FAILED") {
+    logFailure(dependencies, {
+      analysisId: analysis.id,
+      category: "PROVIDER_FILE_FAILED",
+      elapsedMs: Math.max(0, now() - startedAt),
+      operation: "provider-file-check",
+      providerFilePresent: true,
+      retryable: false,
+    });
     const failed = await dependencies.repository.fail(
       analysis.id,
       dependencies.leaseToken,
@@ -215,6 +310,18 @@ export async function transcribeAnalysis(
   try {
     transcription = await dependencies.client.generate(providerFile);
   } catch (error) {
+    const classification = classifyTranscriptionError(error);
+    logFailure(dependencies, {
+      analysisId: analysis.id,
+      category: classification.category,
+      elapsedMs: Math.max(0, now() - startedAt),
+      operation: "transcript-generation",
+      providerFilePresent: true,
+      retryable: classification.retryable,
+    });
+    if (classification.retryable) {
+      return response(analysis, "RETRYABLE");
+    }
     const failed = await dependencies.repository.fail(
       analysis.id,
       dependencies.leaseToken,
@@ -226,6 +333,14 @@ export async function transcribeAnalysis(
 
   const transcriptText = transcription.text.trim();
   if (!transcriptText) {
+    logFailure(dependencies, {
+      analysisId: analysis.id,
+      category: "EMPTY_TRANSCRIPT",
+      elapsedMs: Math.max(0, now() - startedAt),
+      operation: "transcript-generation",
+      providerFilePresent: true,
+      retryable: false,
+    });
     const failed = await dependencies.repository.fail(
       analysis.id,
       dependencies.leaseToken,

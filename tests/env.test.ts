@@ -5,6 +5,7 @@ import {
   getGeminiApiKey,
   getGeminiEmbeddingDimensions,
   getGeminiEmbeddingModel,
+  getGeminiTranscriptionTimeoutMs,
   getGeminiTranscriptionModel,
   getGeminiTopicModel,
   getCloudinaryConfig,
@@ -20,6 +21,8 @@ const originalVideoMaxSize = process.env.VIDEO_MAX_SIZE_MB;
 const originalPdfMaxSize = process.env.PDF_MAX_SIZE_MB;
 const originalTranscriptionTimeout =
   process.env.AI_TRANSCRIPTION_TIMEOUT_SECONDS;
+const originalGeminiTranscriptionTimeout =
+  process.env.GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS;
 const originalGeminiApiKey = process.env.GEMINI_API_KEY;
 const originalGeminiTranscriptionModel =
   process.env.GEMINI_TRANSCRIPTION_MODEL;
@@ -64,6 +67,13 @@ afterEach(() => {
     delete process.env.AI_TRANSCRIPTION_TIMEOUT_SECONDS;
   } else {
     process.env.AI_TRANSCRIPTION_TIMEOUT_SECONDS = originalTranscriptionTimeout;
+  }
+
+  if (originalGeminiTranscriptionTimeout === undefined) {
+    delete process.env.GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS;
+  } else {
+    process.env.GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS =
+      originalGeminiTranscriptionTimeout;
   }
 
   if (originalGeminiApiKey === undefined) {
@@ -238,6 +248,19 @@ describe("server environment validation", () => {
     process.env.AI_TRANSCRIPTION_TIMEOUT_SECONDS = "120";
 
     expect(getAiTranscriptionTimeoutMs()).toBe(120_000);
+  });
+
+  it("keeps the transcription provider timeout below Vercel's limit", () => {
+    delete process.env.GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS;
+    expect(getGeminiTranscriptionTimeoutMs()).toBe(250_000);
+
+    process.env.GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS = "240";
+    expect(getGeminiTranscriptionTimeoutMs()).toBe(240_000);
+
+    process.env.GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS = "300";
+    expect(() => getGeminiTranscriptionTimeoutMs()).toThrow(
+      "must be greater than 0 and less than 300",
+    );
   });
 
   it("validates Cloudinary and Supabase storage configuration", () => {

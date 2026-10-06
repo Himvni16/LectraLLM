@@ -9,10 +9,18 @@ import {
   createCloudinaryVideoStore,
   type CloudinaryVideoStore,
 } from "@/lib/cloudinary/videos";
+import {
+  classifyTranscriptionError,
+  TranscriptionOperationError,
+  type TranscriptionErrorCategory,
+} from "@/lib/transcription/errors";
 
-export class StoredVideoUnavailableError extends Error {
-  constructor() {
-    super("The stored lecture video is unavailable.");
+export class StoredVideoUnavailableError extends TranscriptionOperationError {
+  constructor(
+    category: TranscriptionErrorCategory = "INVALID_CLOUDINARY_ASSET",
+    retryable = false,
+  ) {
+    super("The stored lecture video is unavailable.", category, retryable);
     this.name = "StoredVideoUnavailableError";
   }
 }
@@ -65,8 +73,15 @@ export function createCloudinaryVideoLocator(
               : `video/${metadata.format}`,
           size: metadata.bytes,
         };
-      } catch {
-        throw new StoredVideoUnavailableError();
+      } catch (error) {
+        if (error instanceof StoredVideoUnavailableError) throw error;
+        const classification = classifyTranscriptionError(error);
+        throw new StoredVideoUnavailableError(
+          classification.retryable
+            ? classification.category
+            : "INVALID_CLOUDINARY_ASSET",
+          classification.retryable,
+        );
       }
     },
   };

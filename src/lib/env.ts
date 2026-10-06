@@ -22,6 +22,7 @@ export interface UploadLimits {
 }
 
 const DEFAULT_AI_TRANSCRIPTION_TIMEOUT_SECONDS = 1800;
+export const DEFAULT_GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS = 250;
 const DEFAULT_GEMINI_TRANSCRIPTION_MODEL = "gemini-3.8-flash";
 const DEFAULT_GEMINI_TOPIC_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_TOPIC_CHUNK_CHARS = 12_000;
@@ -191,6 +192,20 @@ export function getAiTranscriptionTimeoutMs(): number {
   );
 }
 
+export function getGeminiTranscriptionTimeoutMs(): number {
+  const rawValue = process.env.GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS?.trim();
+  if (!rawValue) return DEFAULT_GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS * 1000;
+
+  const value = Number(rawValue);
+  if (!Number.isFinite(value) || value <= 0 || value >= 300) {
+    throw new Error(
+      "GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS must be greater than 0 and less than 300.",
+    );
+  }
+
+  return value * 1000;
+}
+
 export function getCloudinaryConfig(): CloudinaryConfig {
   const uploadFolder =
     process.env.CLOUDINARY_UPLOAD_FOLDER?.trim() ||
@@ -240,6 +255,7 @@ export function validateServerEnv(): void {
   getGeminiEmbeddingDimensions();
   getUploadLimits();
   getAiTranscriptionTimeoutMs();
+  getGeminiTranscriptionTimeoutMs();
   getCloudinaryConfig();
   getSupabaseStorageConfig();
 }

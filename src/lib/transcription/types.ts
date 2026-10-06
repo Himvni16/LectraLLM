@@ -93,6 +93,11 @@ export interface TranscriptionStepResponse {
   status: AnalysisStatus;
   videoFileName: string;
   pdfFileName: string;
-  outcome: "UPLOADED" | "PROCESSING" | "PROVIDER_EXPIRED" | "COMPLETED";
+  outcome:
+    | "UPLOADED"
+    | "PROCESSING"
+    | "RETRYABLE"
+    | "PROVIDER_EXPIRED"
+    | "COMPLETED";
   transcription?: AiTranscriptionResult;
 }

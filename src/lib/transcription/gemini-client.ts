@@ -13,11 +13,17 @@ import {
   type CloudinaryVideoStore,
 } from "@/lib/cloudinary/videos";
 import {
-  getAiTranscriptionTimeoutMs,
   getGeminiApiKey,
+  getGeminiTranscriptionTimeoutMs,
   getGeminiTranscriptionModel,
   getUploadLimits,
 } from "@/lib/env";
+import {
+  classifyTranscriptionError,
+  providerHttpError,
+  TranscriptionOperationError,
+  type TranscriptionErrorCategory,
+} from "@/lib/transcription/errors";
 import type {
   AiTranscriptionResult,
   TranscriptionClient,
@@ -82,11 +88,32 @@ interface GeminiTranscriptionClientOptions {
   maxSizeBytes?: number;
 }
 
-export class GeminiTranscriptionClientError extends Error {
-  constructor(message = "Gemini transcription failed.") {
-    super(message);
+export class GeminiTranscriptionClientError extends TranscriptionOperationError {
+  constructor(
+    message = "Gemini transcription failed.",
+    category: TranscriptionErrorCategory = "UNKNOWN",
+    retryable = false,
+  ) {
+    super(message, category, retryable);
     this.name = "GeminiTranscriptionClientError";
   }
+}
+
+function safeProviderError(error: unknown): GeminiTranscriptionClientError {
+  const classification = classifyTranscriptionError(error);
+  return new GeminiTranscriptionClientError(
+    "Gemini transcription failed.",
+    classification.category,
+    classification.retryable,
+  );
+}
+
+function malformedProviderResponse(): GeminiTranscriptionClientError {
+  return new GeminiTranscriptionClientError(
+    "Gemini transcription failed.",
+    "MALFORMED_PROVIDER_RESPONSE",
+    false,
+  );
 }
 
 function videoFormat(contentType: string): string | null {
@@ -110,12 +137,12 @@ function normalizeFile(
   fallbackName?: string,
 ): TranscriptionProviderFile {
   if (!value || typeof value !== "object") {
-    throw new GeminiTranscriptionClientError();
+    throw malformedProviderResponse();
   }
   const file = value as GeminiFile;
   const name =
     typeof file.name === "string" && file.name ? file.name : fallbackName;
-  if (!name) throw new GeminiTranscriptionClientError();
+  if (!name) throw malformedProviderResponse();
 
   if (file.state === FileState.PROCESSING) {
     return { name, state: "PROCESSING", uri: null, mimeType: null };
@@ -140,7 +167,7 @@ function normalizeFile(
 
 function readUploadedFile(value: unknown): TranscriptionProviderFile {
   if (!value || typeof value !== "object" || !("file" in value)) {
-    throw new GeminiTranscriptionClientError();
+    throw malformedProviderResponse();
   }
   return normalizeFile((value as { file: unknown }).file);
 }
@@ -152,7 +179,7 @@ export function createGoogleGeminiTranscriptionProvider(
   const client =
     options.client ?? (new GoogleGenAI({ apiKey }) as unknown as GeminiApi);
   const fetchImpl = options.fetchImpl ?? fetch;
-  const timeoutMs = options.timeoutMs ?? getAiTranscriptionTimeoutMs();
+  const timeoutMs = options.timeoutMs ?? getGeminiTranscriptionTimeoutMs();
 
   return {
     async upload(input) {
@@ -172,16 +199,19 @@ export function createGoogleGeminiTranscriptionProvider(
           },
           body: JSON.stringify({ file: { display_name: input.fileName } }),
         });
-        if (!startResponse.ok) throw new GeminiTranscriptionClientError();
+        if (!startResponse.ok) throw providerHttpError(startResponse.status);
         const uploadUrl = startResponse.headers.get("x-goog-upload-url");
-        if (!uploadUrl) throw new GeminiTranscriptionClientError();
+        if (!uploadUrl) throw malformedProviderResponse();
 
         const cloudinaryResponse = await fetchImpl(input.downloadUrl, {
           cache: "no-store",
           signal,
         });
         if (!cloudinaryResponse.ok || !cloudinaryResponse.body) {
-          throw new GeminiTranscriptionClientError();
+          if (!cloudinaryResponse.ok) {
+            throw providerHttpError(cloudinaryResponse.status);
+          }
+          throw malformedProviderResponse();
         }
         const sourceLength = Number(
           cloudinaryResponse.headers.get("content-length"),
@@ -191,7 +221,7 @@ export function createGoogleGeminiTranscriptionProvider(
           sourceLength > 0 &&
           sourceLength !== input.size
         ) {
-          throw new GeminiTranscriptionClientError();
+          throw malformedProviderResponse();
         }
 
         const uploadRequest: RequestInit & { duplex: "half" } = {
@@ -207,11 +237,11 @@ export function createGoogleGeminiTranscriptionProvider(
           body: cloudinaryResponse.body,
         };
         const uploadResponse = await fetchImpl(uploadUrl, uploadRequest);
-        if (!uploadResponse.ok) throw new GeminiTranscriptionClientError();
+        if (!uploadResponse.ok) throw providerHttpError(uploadResponse.status);
         return readUploadedFile(await uploadResponse.json());
       } catch (error) {
-        if (error instanceof GeminiTranscriptionClientError) throw error;
-        throw new GeminiTranscriptionClientError();
+        if (error instanceof TranscriptionOperationError) throw error;
+        throw safeProviderError(error);
       }
     },
 
@@ -228,8 +258,8 @@ export function createGoogleGeminiTranscriptionProvider(
         if (isNotFoundError(error)) {
           return { name, state: "NOT_FOUND", uri: null, mimeType: null };
         }
-        if (error instanceof GeminiTranscriptionClientError) throw error;
-        throw new GeminiTranscriptionClientError();
+        if (error instanceof TranscriptionOperationError) throw error;
+        throw safeProviderError(error);
       }
     },
 
@@ -252,8 +282,9 @@ export function createGoogleGeminiTranscriptionProvider(
           config: { abortSignal: AbortSignal.timeout(timeoutMs) },
         });
         return response.text ?? "";
-      } catch {
-        throw new GeminiTranscriptionClientError();
+      } catch (error) {
+        if (error instanceof TranscriptionOperationError) throw error;
+        throw safeProviderError(error);
       }
     },
 
@@ -285,12 +316,16 @@ export function createGeminiTranscriptionClient(
       if (!("publicId" in video)) {
         throw new GeminiTranscriptionClientError(
           "Gemini transcription requires a stored Cloudinary video.",
+          "INVALID_CLOUDINARY_ASSET",
+          false,
         );
       }
       const format = videoFormat(video.contentType);
       if (!format || video.size <= 0 || video.size > maxSizeBytes) {
         throw new GeminiTranscriptionClientError(
           "Stored lecture video metadata is invalid.",
+          "INVALID_CLOUDINARY_ASSET",
+          false,
         );
       }
 
@@ -314,6 +349,8 @@ export function createGeminiTranscriptionClient(
       if (!text) {
         throw new GeminiTranscriptionClientError(
           "Gemini returned an empty transcript.",
+          "EMPTY_TRANSCRIPT",
+          false,
         );
       }
       return {

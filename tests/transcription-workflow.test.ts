@@ -1,6 +1,7 @@
 import { AnalysisStatus } from "@prisma/client";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { TranscriptionOperationError } from "@/lib/transcription/errors";
 import { StoredVideoUnavailableError } from "@/lib/transcription/media";
 import type {
   AiTranscriptionResult,
@@ -91,6 +92,11 @@ function createVideoLocator(): VideoLocator {
 }
 
 describe("resumable analysis transcription workflow", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+
   it("rejects an unknown analysis ID without touching Gemini", async () => {
     const repository = createRepository(null);
     const client = createClient();
@@ -176,6 +182,91 @@ describe("resumable analysis transcription workflow", () => {
     expect(client.upload).not.toHaveBeenCalled();
     expect(client.generate).not.toHaveBeenCalled();
     expect(repository.fail).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["Gemini 429", "RATE_LIMIT"],
+    ["Gemini 5xx", "PROVIDER_5XX"],
+    ["network timeout", "PROVIDER_TIMEOUT"],
+    ["ECONNRESET", "NETWORK_RESET"],
+  ] as const)(
+    "keeps TRANSCRIBING after a retryable %s generation failure",
+    async (_label, category) => {
+      const repository = createRepository({
+        ...analysis,
+        transcriptionProviderFile: providerName,
+      });
+      const client = createClient({
+        getFile: vi.fn(async () => activeFile),
+        generate: vi.fn(async () => {
+          throw new TranscriptionOperationError(
+            "safe retryable provider failure",
+            category,
+            true,
+          );
+        }),
+      });
+
+      await expect(
+        transcribeAnalysis(analysis.id, {
+          client,
+          leaseToken,
+          repository,
+          videoLocator: createVideoLocator(),
+        }),
+      ).resolves.toMatchObject({
+        outcome: "RETRYABLE",
+        status: AnalysisStatus.TRANSCRIBING,
+      });
+
+      expect(repository.fail).not.toHaveBeenCalled();
+      expect(repository.clearProviderFile).not.toHaveBeenCalled();
+      expect(repository.complete).not.toHaveBeenCalled();
+      expect(client.deleteFile).not.toHaveBeenCalled();
+    },
+  );
+
+  it("logs only safe structured metadata for a retryable failure", async () => {
+    const repository = createRepository({
+      ...analysis,
+      transcriptionProviderFile: providerName,
+    });
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const now = vi.fn().mockReturnValueOnce(1_000).mockReturnValue(1_250);
+    const client = createClient({
+      getFile: vi.fn(async () => activeFile),
+      generate: vi.fn(async () => {
+        throw new TranscriptionOperationError(
+          "secret provider detail",
+          "RATE_LIMIT",
+          true,
+        );
+      }),
+    });
+
+    await transcribeAnalysis(analysis.id, {
+      client,
+      leaseToken,
+      repository,
+      videoLocator: createVideoLocator(),
+      logger,
+      now,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Retryable transcription operation failed.",
+      {
+        analysisId: analysis.id,
+        stage: "transcription",
+        operation: "transcript-generation",
+        retryable: true,
+        category: "RATE_LIMIT",
+        providerFilePresent: true,
+        elapsedMs: 250,
+      },
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("secret");
   });
 
   it("generates exactly once when ACTIVE, persists the transcript, advances, and cleans up", async () => {
@@ -396,6 +487,31 @@ describe("resumable analysis transcription workflow", () => {
     expect(client.deleteFile).not.toHaveBeenCalled();
   });
 
+  it("treats an empty successful provider response as terminal", async () => {
+    const repository = createRepository({
+      ...analysis,
+      transcriptionProviderFile: providerName,
+    });
+    const client = createClient({
+      getFile: vi.fn(async () => activeFile),
+      generate: vi.fn(async () => ({ ...transcription, text: "   " })),
+    });
+
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        leaseToken,
+        repository,
+        videoLocator: createVideoLocator(),
+      }),
+    ).rejects.toMatchObject({ code: "TRANSCRIPTION_FAILED" });
+    expect(repository.fail).toHaveBeenCalledWith(
+      analysis.id,
+      leaseToken,
+      false,
+    );
+  });
+
   it("handles an unavailable stored video without contacting Gemini", async () => {
     const repository = createRepository();
     const client = createClient();
@@ -418,6 +534,34 @@ describe("resumable analysis transcription workflow", () => {
       leaseToken,
       false,
     );
+    expect(client.upload).not.toHaveBeenCalled();
+  });
+
+  it("keeps TRANSCRIBING after a transient Cloudinary lookup failure", async () => {
+    const repository = createRepository();
+    const client = createClient();
+    const videoLocator: VideoLocator = {
+      locate: vi.fn(async () => {
+        throw new TranscriptionOperationError(
+          "temporary Cloudinary failure",
+          "PROVIDER_5XX",
+          true,
+        );
+      }),
+    };
+
+    await expect(
+      transcribeAnalysis(analysis.id, {
+        client,
+        leaseToken,
+        repository,
+        videoLocator,
+      }),
+    ).resolves.toMatchObject({
+      outcome: "RETRYABLE",
+      status: AnalysisStatus.TRANSCRIBING,
+    });
+    expect(repository.fail).not.toHaveBeenCalled();
     expect(client.upload).not.toHaveBeenCalled();
   });
 

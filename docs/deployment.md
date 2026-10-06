@@ -39,7 +39,8 @@ Configure these only as server-side variables. Never use a `NEXT_PUBLIC_` prefix
 | `GEMINI_EMBEDDING_DIMENSIONS` | No | Embedding dimensions; default `768` |
 | `VIDEO_MAX_SIZE_MB` | No | Video limit in MiB; default `100` |
 | `PDF_MAX_SIZE_MB` | No | PDF limit in MiB; default `25` |
-| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Gemini video-operation timeout; default `1800` seconds |
+| `AI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | General Gemini topic/embedding request timeout; default `1800` seconds |
+| `GEMINI_TRANSCRIPTION_TIMEOUT_SECONDS` | No | Gemini video upload/file/transcript timeout; default `250` seconds and must remain below `300` |
 | `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary product-environment name |
 | `CLOUDINARY_API_KEY` | Yes | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Yes | Cloudinary server secret |
