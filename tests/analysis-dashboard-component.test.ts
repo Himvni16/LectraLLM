@@ -47,6 +47,15 @@ const missingMatch: DashboardMatch = {
   matchType: "MISSING",
 };
 
+const weakMatch: DashboardMatch = {
+  pdfTopicId: "pdf-weak",
+  pdfTopicName: "Semantically Related Detail",
+  videoTopicId: "video-weak",
+  videoTopicName: "Related Lecture Topic",
+  similarityScore: 0.42,
+  matchType: "WEAK",
+};
+
 const extractedTopics = [
   {
     id: "video-1",
@@ -368,6 +377,15 @@ describe("analysis dashboard rendering", () => {
     expect(html).toContain("No missing PDF topics");
     expect(html).not.toContain('data-alignment-missing-topics="true"');
     expect(html).not.toContain('id="missing-topics-heading"');
+  });
+
+  it("does not describe a WEAK-only result as covered", () => {
+    const html = renderDashboard({ matches: [weakMatch] });
+
+    expect(html).toContain("Topic Coverage");
+    expect(html).toContain("0%");
+    expect(html).toContain("0 of 1 PDF topic is covered.");
+    expect(html).toContain("No missing PDF topics");
   });
 
   it("does not render the completed dashboard before completion", () => {

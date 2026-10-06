@@ -73,7 +73,7 @@ export function deriveAnalysisDashboard(
   });
 
   const totalPdfTopics = topicRows.length;
-  const coveredTopics = totalPdfTopics - counts.MISSING;
+  const coveredTopics = counts.STRONG + counts.PARTIAL;
   const coveragePercentage =
     totalPdfTopics === 0 ? 0 : (coveredTopics / totalPdfTopics) * 100;
 

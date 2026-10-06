@@ -53,6 +53,59 @@ describe("analysis dashboard calculations", () => {
     });
   });
 
+  it("reports full coverage when every topic is STRONG or PARTIAL", () => {
+    const dashboard = deriveAnalysisDashboard(
+      [match("strong", 0.91, "STRONG"), match("partial", 0.65, "PARTIAL")],
+      78,
+    );
+
+    expect(dashboard.coveredTopics).toBe(2);
+    expect(dashboard.coveragePercentage).toBe(100);
+  });
+
+  it("does not count WEAK topics as covered", () => {
+    const dashboard = deriveAnalysisDashboard(
+      [
+        match("strong", 0.91, "STRONG"),
+        match("partial", 0.65, "PARTIAL"),
+        match("weak", 0.42, "WEAK"),
+      ],
+      66,
+    );
+
+    expect(dashboard.coveredTopics).toBe(2);
+    expect(dashboard.coveragePercentage).toBeCloseTo(66.666_666_666_7);
+  });
+
+  it("does not count MISSING topics as covered", () => {
+    const dashboard = deriveAnalysisDashboard(
+      [
+        match("strong", 0.91, "STRONG"),
+        match("partial", 0.65, "PARTIAL"),
+        match("missing", 0.2, "MISSING"),
+      ],
+      60,
+    );
+
+    expect(dashboard.coveredTopics).toBe(2);
+    expect(dashboard.coveragePercentage).toBeCloseTo(66.666_666_666_7);
+  });
+
+  it("excludes both WEAK and MISSING topics from coverage", () => {
+    const dashboard = deriveAnalysisDashboard(
+      [
+        match("strong", 0.91, "STRONG"),
+        match("partial", 0.65, "PARTIAL"),
+        match("weak", 0.42, "WEAK"),
+        match("missing", 0.2, "MISSING"),
+      ],
+      52.5,
+    );
+
+    expect(dashboard.coveredTopics).toBe(2);
+    expect(dashboard.coveragePercentage).toBe(50);
+  });
+
   it("derives mixed counts, coverage, and topic rows in source order", () => {
     const matches = [
       match("strong", 0.91, "STRONG"),
@@ -69,7 +122,8 @@ describe("analysis dashboard calculations", () => {
       WEAK: 1,
       MISSING: 1,
     });
-    expect(dashboard.coveragePercentage).toBe(75);
+    expect(dashboard.coveredTopics).toBe(2);
+    expect(dashboard.coveragePercentage).toBe(50);
     expect(dashboard.topicRows.map((topic) => topic.pdfTopicId)).toEqual([
       "strong",
       "partial",
